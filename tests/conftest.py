@@ -77,18 +77,9 @@ def pytest_configure():
     bindings_specific_source_folder = bindings_source_folder / OS_NAME / ARCH / PYTHON_VERSION
     bindings_specific_destination_folder = bindings_destination_folder / OS_NAME / ARCH / PYTHON_VERSION
 
-    # Copy the bindings folder to the src directory if they doesn't exist
-    if not bindings_specific_destination_folder.exists():
-        if not bindings_specific_source_folder.exists():
-            raise FileNotFoundError(
-                f'The bindings in "{bindings_specific_destination_folder}" are missing. '
-                "Please add them to run the tests."
-            )
+    from utilities.bindings import install_test_bindings
 
-        # Copy the bindings to the destination folder
-        shutil.copytree(
-            src=bindings_specific_source_folder, dst=bindings_specific_destination_folder, dirs_exist_ok=True
-        )
+    install_test_bindings(bindings_specific_source_folder, bindings_specific_destination_folder)
 
     # ensure the addon module is on the python path
     sys.path.append(str(REPO_ROOT / "src" / "addons"))

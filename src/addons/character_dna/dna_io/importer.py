@@ -561,7 +561,7 @@ class DNAImporter:
             height_scale_factor = self.get_height_scale_factor()
             # Create the extra bones for the spine, pelvis, and root
             for bone_name, bone_data in EXTRA_BONES:
-                location = bone_data["location"]
+                location = bone_data["location"].copy()
                 rotation = bone_data["rotation"]
                 if (
                     not self.rig_object

@@ -109,6 +109,8 @@ def _clean_scene() -> Any:
 
 def _select_only(*objects: bpy.types.Object, active: bpy.types.Object | None = None) -> None:
     """Deselect everything, then select ``objects`` and set ``active``."""
+    # Direct data API creation/removal leaves view-layer bases stale until updated.
+    bpy.context.view_layer.update()
     for obj in bpy.context.view_layer.objects:
         obj.select_set(False)
     for obj in objects:
