@@ -173,8 +173,10 @@ class CHARACTER_DNA_OT_sync_native_runtime(bpy.types.Operator):
 
 
 def _apply_requested() -> None:
+    from ..utilities import get_addon_ops_module
+
     try:
-        bpy.ops.character_dna.sync_native_runtime()
+        get_addon_ops_module().sync_native_runtime()
     except Exception:
         logger.exception("Could not apply the requested native backend change")
 

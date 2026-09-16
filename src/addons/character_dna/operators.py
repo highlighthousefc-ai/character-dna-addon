@@ -81,11 +81,15 @@ class GenericProgressQueueOperator(bpy.types.Operator):
                 if self._commands_queue.empty():
                     break
                 index, mesh_index, description, kwargs_callback, callback = self._commands_queue.get()
-                # calculate the kwargs
-                kwargs = kwargs_callback(index, mesh_index)
-                # inject the kwargs into the description
-                description = description.format(**kwargs)
-                callback(**kwargs)
+                try:
+                    kwargs = kwargs_callback(index, mesh_index)
+                    description = description.format(**kwargs)
+                    callback(**kwargs)
+                except Exception as error:
+                    logger.exception("Progress queue command failed")
+                    self.finish(context)
+                    self.report({"ERROR"}, str(error))
+                    return {"CANCELLED"}
 
             remaining = self._commands_queue.qsize()
             addon_window_manager_properties.progress = (
@@ -106,29 +110,31 @@ class GenericProgressQueueOperator(bpy.types.Operator):
         if not self.validate(context):
             return {"CANCELLED"}
 
-        self._timer = context.window_manager.event_timer_add(0.01, window=context.window)
-        context.window_manager.modal_handler_add(self)
         head = utilities.get_active_head()
-        if head:
-            addon_window_manager_properties.progress = 0
-            addon_window_manager_properties.progress_description = ""
-            self._commands_queue = queue.Queue()
+        if not head:
+            return {"CANCELLED"}
+        addon_window_manager_properties.progress = 0
+        addon_window_manager_properties.progress_description = ""
+        self._commands_queue = queue.Queue()
+        try:
             self.set_commands_queue(context, head, self._commands_queue)
             self._commands_queue_size = self._commands_queue.qsize()
-            return {"RUNNING_MODAL"}
-        return {"CANCELLED"}
+            self._timer = context.window_manager.event_timer_add(0.01, window=context.window)
+            context.window_manager.modal_handler_add(self)
+        except Exception as error:
+            logger.exception("Could not start progress queue")
+            self.finish(context)
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+        return {"RUNNING_MODAL"}
 
     def finish(self, context: "Context") -> set[str]:
         addon_window_manager_properties = utilities.get_addon_window_manager_properties(context)
-
         if self._timer:
             context.window_manager.event_timer_remove(self._timer)
+            self._timer = None
+        self._commands_queue = queue.Queue()
         addon_window_manager_properties.progress = 1
-        # re-initialize the rig instance so the shape key blocks collection is updated for the UI
-        instance = callbacks.get_active_rig_instance()
-        if instance:
-            instance.data.clear()
-            instance.initialize()
         return {"FINISHED"}
 
     def validate(self, context: "Context") -> bool:
