@@ -212,15 +212,19 @@ jobs:
           7z x -y -oblender blender.zip > /dev/null
           rm blender.zip
 
+      # Informational: records which Python/runtime files Blender for Windows bundles.
       - name: Inspect Blender's bundled Python
         run: |
+          set +o pipefail
           B="$(ls -d blender/blender-*)"
-          echo "== top-level runtime DLLs"; ls "$B" | grep -iE 'python|vcruntime|msvcp|ucrt|concrt' || true
-          echo "== python files"; find "$B" \( -iname 'python3*.dll' -o -iname 'python3*.lib' -o -iname 'pyconfig.h' -o -iname 'python*.exe' \) | sort
+          echo "== top-level runtime DLLs"; ls "$B" | grep -iE 'python|vcruntime|msvcp|ucrt|concrt'
+          echo "== blender.shared runtime DLLs"; ls "$B/blender.shared" 2>&1 | grep -iE 'vcruntime|msvcp|ucrt|concrt|python'
+          echo "== python files"; find "$B" \( -iname 'python3*.dll' -o -iname 'python3*.lib' -o -iname 'pyconfig.h' -o -iname 'Python.h' -o -iname 'python*.exe' \) | sort
           echo "== $B/${BLENDER_SERIES}/python"; ls "$B/${BLENDER_SERIES}/python"
-          echo "== include files"; ls "$B/${BLENDER_SERIES}/python/include" 2>/dev/null | wc -l
-          echo "== libs"; ls "$B/${BLENDER_SERIES}/python/libs" 2>/dev/null || echo "(no libs folder)"
+          echo "== include folder"; ls "$B/${BLENDER_SERIES}/python/include" 2>&1 | head -3
+          echo "== libs folder"; ls "$B/${BLENDER_SERIES}/python/libs" 2>&1 | head -3
           "$B/blender.exe" --background --factory-startup --python-expr "import sys, sysconfig; print('PYTHON', sys.version); print('EXECUTABLE', sys.executable); print('EXT_SUFFIX', sysconfig.get_config_var('EXT_SUFFIX'))" 2>&1 | grep -E '^(PYTHON|EXECUTABLE|EXT_SUFFIX)'
+          exit 0
 
       - name: Round-trip and evaluate through the addon in Blender
         run: |
