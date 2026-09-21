@@ -7,7 +7,6 @@ updates:
       interval: "monthly"
       day: "monday"
       time: "09:00"
-    target-branch: "dev"
     open-pull-requests-limit: 10
     commit-message:
       prefix: "deps"
@@ -46,7 +45,6 @@ updates:
       interval: "monthly"
       day: "monday"
       time: "09:00"
-    target-branch: "dev"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "ci"
