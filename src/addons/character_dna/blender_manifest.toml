@@ -1,5 +1,5 @@
 # =============================================================================
-# Blender Extension Manifest (Blender 4.5+)
+# Blender Extension Manifest (Blender 5.x)
 # https://docs.blender.org/manual/en/latest/advanced/extensions.html
 # =============================================================================
 
@@ -24,7 +24,7 @@ website = "https://polyhammer.com"
 # Blender Compatibility
 # =============================================================================
 # Minimum Blender version required
-blender_version_min = "4.5.0"
+blender_version_min = "5.0.0"
 # Maximum Blender version supported
 blender_version_max = "5.3.0"
 
@@ -67,7 +67,7 @@ for Epic Games' MetaHuman DNA file format.
 
 ## Requirements
 
-- Blender 4.5 or newer
+- Blender 5.0 or newer (Windows x64, macOS Apple Silicon)
 - Platform-specific OpenRigLogic bindings (bundled in the per-platform package)
 
 For detailed documentation, visit: https://docs.polyhammer.com/character-dna-addon/
@@ -83,7 +83,7 @@ tags = ["Rigging", "Animation", "Import-Export", "3D View"]
 # =============================================================================
 # Platforms this extension supports
 # Leave empty for pure Python extensions
-platforms = ["windows-x64", "linux-x64", "macos-arm64"]
+platforms = ["windows-x64", "macos-arm64"]
 
 # =============================================================================
 # Permissions
@@ -97,16 +97,11 @@ permissions = { files = "Import and export DNA files" }
 # Python packages required by this extension
 # These will be installed automatically when the extension is enabled.
 # The pyufbx wheels are native and therefore per-platform and per-Python-ABI: the
-# packager keeps only the wheels matching each platform in that platform's zip, and
-# Blender then installs the cp311 (Blender 4.5) or cp313 (Blender 5.x) wheel that
-# matches its own interpreter.
+# packager keeps only the wheels matching each platform in that platform's zip.
+# Blender 5.x uses Python 3.13, so only cp313 wheels are shipped.
 wheels = [
-    "./wheels/pyufbx-0.0.0-cp311-cp311-win_amd64.whl",
-    "./wheels/pyufbx-0.0.0-cp311-cp311-macosx_11_0_arm64.whl",
-    "./wheels/pyufbx-0.0.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl",
     "./wheels/pyufbx-0.0.0-cp313-cp313-win_amd64.whl",
     "./wheels/pyufbx-0.0.0-cp313-cp313-macosx_11_0_arm64.whl",
-    "./wheels/pyufbx-0.0.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl",
 ]
 
 # =============================================================================

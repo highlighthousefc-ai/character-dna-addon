@@ -22,14 +22,13 @@ description = "Blender addon for importing/exporting MetaHuman DNA files with Ri
 keywords = ["blender", "metahuman", "dna", "riglogic", "animation", "3d"]
 name = "character-dna-addon"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13,<3.14"
 version = "0.13.7"
 
 [project.optional-dependencies]
 dev = [
   "debugpy>=1.8.13",
-  "bpy>=4.5.1,<5.2; python_version < '3.13'",
-  "bpy>=5.2; python_version >= '3.13'",
+  "bpy>=5.1",
   "pytest>=8.3.3",
   "pytest-dotenv>=0.5.2",
   "pytest-cov>=6.0.0",
@@ -123,12 +122,8 @@ packages = ["src/addons/character_dna"]
 # pre-built wheels the extension bundles
 [tool.uv.sources]
 pyufbx = [
-  {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp311-cp311-win_amd64.whl", marker = "sys_platform == 'win32' and python_full_version >= '3.11' and python_full_version < '3.12'"},
   {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp313-cp313-win_amd64.whl", marker = "sys_platform == 'win32' and python_full_version >= '3.13' and python_full_version < '3.14'"},
-  {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp311-cp311-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and python_full_version >= '3.11' and python_full_version < '3.12'"},
   {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp313-cp313-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and python_full_version >= '3.13' and python_full_version < '3.14'"},
-  {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", marker = "sys_platform == 'linux' and python_full_version >= '3.11' and python_full_version < '3.12'"},
-  {path = "src/addons/character_dna/wheels/pyufbx-0.0.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", marker = "sys_platform == 'linux' and python_full_version >= '3.13' and python_full_version < '3.14'"},
 ]
 
 # =============================================================================
@@ -394,12 +389,9 @@ staticmethod-decorators = ["staticmethod"]
 # =============================================================================
 [tool.uv]
 override-dependencies = [
-  # Pin numpy per Python version: bpy pins numpy<2.0 but numpy 1.x has no
-  # pre-built wheels for Python 3.13, causing source builds that hang on
-  # Windows CI. bpy 5.1 works fine with numpy 2.x at runtime (Blender 5.1
-  # bundles it internally).
-  "numpy==1.26.4; python_version == '3.11'",
-  "numpy==2.3.4; python_version == '3.13'",
+  # bpy pins numpy<2.0 but numpy 1.x has no pre-built wheels for Python 3.13.
+  # bpy 5.x works fine with numpy 2.x at runtime (Blender bundles it internally).
+  "numpy==2.3.4",
 ]
 
 [tool.ruff.lint.pylint]
@@ -414,8 +406,7 @@ max-statements = 60
 [dependency-groups]
 dev = [
   "debugpy>=1.8.13",
-  "bpy>=4.5.1,<5.2; python_version < '3.13'",
-  "bpy>=5.2; python_version >= '3.13'",
+  "bpy>=5.1",
   "pytest>=8.3.3",
   "pytest-dotenv>=0.5.2",
   "pytest-cov>=6.0.0",
