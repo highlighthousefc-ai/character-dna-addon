@@ -215,10 +215,10 @@ jobs:
       # Informational: records which Python/runtime files Blender for Windows bundles.
       - name: Inspect Blender's bundled Python
         run: |
-          set +o pipefail
+          set +e +o pipefail
           B="$(ls -d blender/blender-*)"
-          echo "== top-level runtime DLLs"; ls "$B" | grep -iE 'python|vcruntime|msvcp|ucrt|concrt'
-          echo "== blender.shared runtime DLLs"; ls "$B/blender.shared" 2>&1 | grep -iE 'vcruntime|msvcp|ucrt|concrt|python'
+          echo "== top level"; ls "$B"
+          echo "== blender.shared"; ls "$B/blender.shared" 2>&1 | head -80
           echo "== python files"; find "$B" \( -iname 'python3*.dll' -o -iname 'python3*.lib' -o -iname 'pyconfig.h' -o -iname 'Python.h' -o -iname 'python*.exe' \) | sort
           echo "== $B/${BLENDER_SERIES}/python"; ls "$B/${BLENDER_SERIES}/python"
           echo "== include folder"; ls "$B/${BLENDER_SERIES}/python/include" 2>&1 | head -3
