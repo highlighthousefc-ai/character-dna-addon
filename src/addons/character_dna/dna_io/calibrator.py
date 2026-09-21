@@ -30,13 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 class DNACalibrator(DNAExporter, DNAImporter):
-    @property
-    def _auto_lod_enabled(self) -> bool:
-        """Whether auto LOD calibration (LOD0 -> lower-LOD propagation) is active.
-
-        This is only available in the Pro edition and when the output option is enabled."""
-        return bool(self._instance.output.auto_update_lods) and self._instance.is_pro
-
     def validate(self) -> tuple[bool, str, str, Callable | None]:
         valid, title, message, fix = super().validate()
         if not valid:
@@ -184,8 +177,7 @@ class DNACalibrator(DNAExporter, DNAImporter):
                 else:
                     scene_calibrated_lower_lod_indices.add(mesh_index)
 
-        propagated_writes = self._propagate_lods_from_lod0(lod0_mesh_writes, scene_calibrated_lower_lod_indices)
-        self._align_seams(lod0_mesh_writes, propagated_writes)
+        self._align_seams(lod0_mesh_writes, {})
 
     def calibrate_normals(self):
         """Write the scene's custom split normals back over the DNA's own.
@@ -247,37 +239,6 @@ class DNACalibrator(DNAExporter, DNAImporter):
 
                 normals = [[x, y, z] for x, y, z in zip(x_values, y_values, z_values, strict=False)]
                 self._dna_writer.setVertexNormals(meshIndex=mesh_index, normals=normals)
-
-    def _propagate_lods_from_lod0(
-        self, lod0_mesh_writes: dict[int, list[list[float]]], skip_mesh_indices: set[int]
-    ) -> dict[int, list[list[float]]]:
-        """When ``output.auto_update_lods`` is enabled (Pro only), propagate the
-        just-calibrated LOD0 mesh shapes to every lower-LOD mesh that was not
-        calibrated from in-scene geometry, using the shared UV-space solver.
-
-        Returns the positions written to each propagated lower-LOD mesh keyed by
-        its DNA mesh index (empty when nothing was propagated), so the seam
-        alignment pass can re-snap them without re-reading the writer.
-
-        This is a no-op in the free edition (the shared ``editors`` submodule
-        that owns the solver is absent) or when there are no LOD0 writes."""
-        if not lod0_mesh_writes or not self._instance.output.auto_update_lods:
-            return {}
-        if not self._instance.is_pro:
-            return {}
-        try:
-            from ..editors.shared.lod_propagation import propagate_lod0_to_lower_lods
-        except ImportError:
-            logger.error("LOD propagation is unavailable in this build; skipping auto LOD update.")
-            return {}
-
-        return propagate_lod0_to_lower_lods(
-            self._dna_reader,
-            self._dna_writer,
-            lod0_mesh_writes,
-            skip_mesh_indices=skip_mesh_indices,
-            progress_callback=self._report,
-        )
 
     @staticmethod
     def _head_lod_for_body_lod(body_lod_index: int) -> int | None:
@@ -561,14 +522,9 @@ class DNACalibrator(DNAExporter, DNAImporter):
                 real_mesh_name = f"{self._prefix}_{mesh_name}"
                 mesh_object = bpy.data.objects.get(real_mesh_name)
                 if not mesh_object:
-                    # Lower-LOD meshes are expected to be absent from the scene when auto LOD
-                    # calibration is enabled (they get propagated from LOD0), so only warn for
-                    # LOD0 meshes or when auto LOD calibration is off.
-                    message = f"Mesh object '{real_mesh_name}' not found for vertex group calibration. Skipping..."
-                    if lod_index == 0 or not self._auto_lod_enabled:
-                        logger.warning(message)
-                    else:
-                        logger.debug(message)
+                    logger.warning(
+                        f"Mesh object '{real_mesh_name}' not found for vertex group calibration. Skipping..."
+                    )
                     continue
                 if not mesh_object.data or not isinstance(mesh_object.data, bpy.types.Mesh):
                     logger.warning(

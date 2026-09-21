@@ -7,7 +7,7 @@ import bpy
 from bl_ui.generic_ui_list import draw_ui_list
 
 # local imports
-from ..constants import PRO_EDITORS, PanelOrder, ToolInfo
+from ..constants import PanelOrder, ToolInfo
 from ..typing import *  # noqa: F403
 from .callbacks import is_face_board_readonly, is_readonly_id, is_reference_readonly
 
@@ -199,8 +199,6 @@ class CHARACTER_DNA_PT_face_board(RigInstanceDependentPanel):
 
         instance = get_active_rig_instance()
         self.layout.enabled = not is_face_board_readonly(instance)
-        if instance and instance.is_pro and instance.raw_control_editor.is_editing:
-            self.layout.enabled = False
 
         error = valid_rig_instance_exists(context)
         if not error:
@@ -223,42 +221,6 @@ class CHARACTER_DNA_PT_face_board(RigInstanceDependentPanel):
             column.prop(face_board, "face_board_follow_head")
         else:
             draw_rig_instance_error(self.layout, error)
-
-
-class CHARACTER_DNA_PT_face_board_footer(bpy.types.Panel):
-    """Footer subpanel pinned to the bottom of the Face Board panel, holding the
-    Map Raw to GUI Controls action button.
-
-    ``HIDE_HEADER`` keeps the button drawn inline (no collapsible header)."""
-
-    bl_label = "(Not Shown)"
-    bl_idname = "CHARACTER_DNA_PT_face_board_footer"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Character DNA"
-    bl_parent_id = "CHARACTER_DNA_PT_face_board"
-    bl_options = {"HIDE_HEADER"}
-
-    def draw(self, context: "Context") -> None:
-        layout = self.layout
-        if layout is None:
-            return
-        # Only show the action once a valid rig instance exists (matches the
-        # parent panel, which otherwise draws an error message).
-        if valid_rig_instance_exists(context):
-            return
-
-        # Greyed out while the Raw Control Editor holds an edit session, exactly
-        # as the button behaved when it lived inside the parent panel's draw.
-        instance = get_active_rig_instance()
-        layout.enabled = not is_reference_readonly(instance) and not is_face_board_readonly(instance)
-        if instance and instance.is_pro and instance.raw_control_editor.is_editing:
-            layout.enabled = False
-
-        if instance and instance.is_pro:
-            row = layout.row()
-            row.scale_y = 1.5
-            row.operator(f"{ToolInfo.NAME}.map_raw_to_gui_controls", icon="UV_SYNC_SELECT")
 
 
 class CHARACTER_DNA_PT_animation_panel(bpy.types.Panel):
@@ -703,8 +665,6 @@ class CHARACTER_DNA_PT_output_buttons_sub_panel(bpy.types.Panel):
             instance = properties.rig_instance_list[active_index]
             self.layout.enabled = not is_reference_readonly(instance)
             row.prop(instance.output, "run_validations")
-            if instance.is_pro:
-                row.prop(instance.output, "auto_update_lods", text="Update LODs")
             row = self.layout.row()
 
             if instance.output.method == "calibrate":
@@ -744,48 +704,3 @@ class CHARACTER_DNA_PT_migrate_legacy_data(bpy.types.Panel):
         row = self.layout.row()
         row.scale_y = 1.5
         row.operator(f"{ToolInfo.NAME}.migrate_legacy_data", icon="FILE_NEW", text="Migrate Now")
-
-
-class CHARACTER_DNA_PT_pro_upsell(bpy.types.Panel):
-    """Advertise the Pro editor tools.
-
-    Always registered, but only shown when the Pro editor UI is *not* visible:
-    either this is the free edition (no ``editors`` submodule) or a Pro user has
-    toggled ``show_pro_features`` off to preview the free edition's UI.
-    """
-
-    bl_label = "Upgrade to Pro"
-    bl_category = "Character DNA"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_order = PanelOrder.PRO_UPSELL.value
-
-    @classmethod
-    def poll(cls, _: "Context") -> bool:
-        from ..utilities import pro_features_visible
-
-        return not pro_features_visible()
-
-    def draw_header(self, _: "Context"):
-        self.layout.label(text="", icon="FUND")
-
-    def draw(self, context: "Context"):
-        if not self.layout:
-            return
-
-        box = self.layout.box()
-        col = box.column(align=True)
-        col.label(text="Please consider supporting this project", icon="INFO")
-        col.label(text="by upgrading to Character DNA Pro to unlock")
-        col.label(text="all features and help fund future development.")
-        row = self.layout.row()
-        row.label(text="Character DNA Pro unlocks:")
-
-        row = self.layout.row()
-        box = row.box()
-        for editor_name, icon in PRO_EDITORS:
-            box.label(text=editor_name, icon=icon)  # pyright: ignore[reportArgumentType]
-
-        row = self.layout.row()
-        row.operator("wm.url_open", text="Upgrade to Pro", icon="URL").url = ToolInfo.GET_PRO

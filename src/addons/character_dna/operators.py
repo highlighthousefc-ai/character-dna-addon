@@ -3,7 +3,6 @@ import logging
 import queue
 import shutil
 
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # third party imports
@@ -902,7 +901,6 @@ class ImportCharacterDna(bpy.types.Operator, importer.ImportAsset, CharacterImpo
         window_manager_properties.evaluate_dependency_graph = True
         ops = utilities.get_addon_ops_module()
         ops.force_evaluate()
-        ops.metrics_collection_consent("INVOKE_DEFAULT")
 
         return {"FINISHED"}
 
@@ -1057,17 +1055,6 @@ class MapRawToGuiControls(bpy.types.Operator):
 
         # re-evaluate so the head mesh matches the newly posed face board
         instance.evaluate()
-        return {"FINISHED"}
-
-
-class TestSentry(bpy.types.Operator):
-    """Test the Sentry error reporting system"""
-
-    bl_idname = f"{ToolInfo.NAME}.test_sentry"
-    bl_label = "Test Sentry"
-
-    def execute(self, context: "Context") -> set[str]:
-        division_by_zero = 1 / 0  # pyright: ignore[reportUnusedVariable] # noqa: F841
         return {"FINISHED"}
 
 
@@ -1337,67 +1324,6 @@ class ReportErrorWithFix(bpy.types.Operator):
             row = self.layout.row()
             row.alert = True
             row.label(text=line)
-
-
-class MetricsCollectionConsent(bpy.types.Operator):
-    """Tell the user that we collect metrics and ask for their consent"""
-
-    bl_idname = f"{ToolInfo.NAME}.metrics_collection_consent"
-    bl_label = "Character DNA Addon Metrics"
-
-    def execute(self, context: "Context") -> set[str]:
-        addon_preferences = utilities.get_addon_preferences()
-        if not addon_preferences:
-            return {"CANCELLED"}
-        addon_preferences.metrics_collection = True
-        utilities.init_sentry()
-        ops = utilities.get_addon_ops_module()
-        ops.force_evaluate()
-        return {"FINISHED"}
-
-    def invoke(self, context: "Context", event: bpy.types.Event) -> set[str] | None:
-        wm = context.window_manager
-        if not wm:
-            return None
-
-        addon_preferences = utilities.get_addon_preferences()
-        if not addon_preferences:
-            return {"CANCELLED"}
-
-        current_timestamp = datetime.now(UTC).timestamp()
-
-        if addon_preferences.metrics_collection:
-            utilities.init_sentry()
-            return {"FINISHED"}
-
-        if bpy.app.online_access and addon_preferences.next_metrics_consent_timestamp < current_timestamp:
-            return wm.invoke_props_dialog(self, confirm_text="Allow", cancel_default=False, width=500)  # type: ignore[return-value]
-        if bpy.app.online_access and addon_preferences.metrics_collection:
-            utilities.init_sentry()
-
-        return {"FINISHED"}
-
-    def cancel(self, context: "Context") -> None:
-        addon_preferences = utilities.get_addon_preferences()
-        if not addon_preferences:
-            return
-        # wait 30 days before asking again
-        addon_preferences.next_metrics_consent_timestamp = (datetime.now(UTC) + timedelta(days=30)).timestamp()
-        addon_preferences.metrics_collection = False
-        ops = utilities.get_addon_ops_module()
-        ops.force_evaluate()
-
-    def draw(self, context: "Context"):
-        if not self.layout:
-            return
-
-        row = self.layout.row()
-        row.label(text="We collect anonymous metrics and bug reports to help improve the Character DNA addon.")
-        row = self.layout.row()
-        row.label(text="No personal data is collected.")
-        row = self.layout.row()
-        row.label(text="Will you allow us to collect bug reports?")
-        row.operator("wm.url_open", text="", icon="URL").url = ToolInfo.METRICS_COLLECTION_AGREEMENT
 
 
 class DuplicateRigInstance(bpy.types.Operator):

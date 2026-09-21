@@ -71,7 +71,9 @@ def pytest_configure():
     Installs the bindings for the addon.
     """
 
-    bindings_source_folder = REPO_ROOT.parent / "character-dna-bindings"
+    # Optional folder laid out as <os>/<arch>/<pyXYZ>/ (e.g. a CI build artifact). When it is
+    # not set, the tests use bindings already placed in the addon's bindings folder.
+    bindings_source_folder = Path(os.environ.get("CHARACTER_DNA_BINDINGS_DIR", REPO_ROOT / "no-bindings-source"))
     bindings_destination_folder = REPO_ROOT / "src" / "addons" / "character_dna" / "bindings"
 
     bindings_specific_source_folder = bindings_source_folder / OS_NAME / ARCH / PYTHON_VERSION

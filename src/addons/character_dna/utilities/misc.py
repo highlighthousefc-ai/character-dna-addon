@@ -1,7 +1,6 @@
 # standard library imports
 import contextlib
 import hashlib
-import importlib
 import json
 import logging
 import math
@@ -456,20 +455,6 @@ def pre_render(*_: Any) -> None:
 
 def post_render(*_: Any) -> None:
     end_render()
-
-
-def post_save(*_: Any) -> None:
-    instance = get_active_rig_instance()
-    if not instance:
-        return
-
-    # Create a DNA backup (Pro editors only; no-op in the free edition).
-    try:
-        from ..editors.backup_manager.core import BackupType, create_backup
-    except ImportError:
-        return
-
-    create_backup(instance, BackupType.BLENDER_FILE_SAVE)
 
 
 def create_empty(empty_name: str) -> bpy.types.Object:
@@ -1713,58 +1698,6 @@ def get_addon_preferences() -> "CharacterAddonPreferences | None":
             ToolInfo.EXTENSION_ID = extension_id
             return bpy.context.preferences.addons[extension_id].preferences  # type: ignore[attr-defined]
     return None
-
-
-def editors_available() -> bool:
-    """Return ``True`` when the optional Pro ``editors`` submodule is present.
-
-    The presence of the ``editors`` package's ``__init__.py`` is the single
-    source of truth for "is this the Pro edition?". The result is cached on the
-    centralized window-manager ``data`` dictionary so repeated polls are cheap.
-    """
-    from ..properties import CharacterWindowManagerProperties
-
-    cache = CharacterWindowManagerProperties.data
-    if "editors_available" not in cache:
-        editors_init = Path(__file__).parent.parent / "editors" / "__init__.py"
-        cache["editors_available"] = editors_init.is_file()
-    return cache["editors_available"]
-
-
-def get_editors() -> ModuleType | None:
-    """Return the imported ``editors`` registry module, or ``None`` when absent.
-
-    The resolved module (or ``None`` when the submodule is missing or fails to
-    import) is cached on the centralized window-manager ``data`` dictionary so a
-    failed import is not retried on every call. When the submodule is missing
-    (free edition) the caller should fall back to the core-only behavior.
-    """
-    from ..properties import CharacterWindowManagerProperties
-
-    cache = CharacterWindowManagerProperties.data
-    if "editors_module" not in cache:
-        module: ModuleType | None = None
-        if editors_available():
-            try:
-                module = importlib.import_module("..editors", package=__package__)
-            except Exception:
-                logger.exception("Failed to import the editors submodule; running without it.")
-        cache["editors_module"] = module
-    return cache["editors_module"]
-
-
-def pro_features_visible() -> bool:
-    """Return ``True`` when the Pro editor UI should be shown.
-
-    This is the case only in a Pro build (the ``editors`` submodule is present)
-    *and* when the ``show_pro_features`` preview toggle is enabled. Pro users can
-    disable the toggle to preview what the free edition's UI looks like.
-    """
-    if not editors_available():
-        return False
-
-    preferences = get_addon_preferences()
-    return bool(getattr(preferences, "show_pro_features", True))
 
 
 def get_addon_window_manager_properties(context: bpy.types.Context | None = None) -> "CharacterWindowManagerProperties":

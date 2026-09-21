@@ -36,10 +36,7 @@ bl_info = {
 # instance for additions/setup, or ``None`` for removals.
 post_setup_scene_callbacks: list[Callable[[rig_instance.RigInstance | None], None]] = []
 
-# Main Addon. Editor operators/panels are registered separately via the optional
-# ``editors`` submodule registry (see ``utilities.get_editors``), so this list
-# contains only the core classes. The upsell panel is always registered; its
-# ``poll`` hides it when the Pro editor UI is visible.
+# Main Addon classes.
 classes = [
     operators.ImportCharacterDna,
     operators.DNA_FH_import_dna,
@@ -49,9 +46,7 @@ classes = [
     operators.ConfirmAnimationImport,
     operators.BakeFaceBoardAnimation,
     operators.BakeComponentAnimation,
-    operators.TestSentry,
     operators.MigrateLegacyData,
-    operators.MetricsCollectionConsent,
     operators.ForceEvaluate,
     operators.RefreshOutputItems,
     operators.MapRawToGuiControls,
@@ -75,7 +70,6 @@ classes = [
     importer.CHARACTER_DNA_LINK_OPTIONS_PT_panel,
     view_3d.CHARACTER_DNA_PT_face_pose_tags,
     view_3d.CHARACTER_DNA_PT_face_board,
-    view_3d.CHARACTER_DNA_PT_face_board_footer,
     view_3d.CHARACTER_DNA_PT_view_options,
     view_3d.CHARACTER_DNA_PT_rig_instance,
     view_3d.CHARACTER_DNA_PT_rig_instance_head_sub_panel,
@@ -87,7 +81,6 @@ classes = [
     view_3d.CHARACTER_DNA_PT_output_panel,
     view_3d.CHARACTER_DNA_PT_output_buttons_sub_panel,
     view_3d.CHARACTER_DNA_PT_migrate_legacy_data,
-    view_3d.CHARACTER_DNA_PT_pro_upsell,
 ]
 
 app_handlers = {
@@ -100,7 +93,6 @@ app_handlers = {
     "render_init": bpy.app.handlers.persistent(utilities.pre_render),
     "render_complete": bpy.app.handlers.persistent(utilities.post_render),
     "render_cancel": bpy.app.handlers.persistent(utilities.post_render),
-    "save_post": bpy.app.handlers.persistent(utilities.post_save),
 }
 
 
@@ -123,23 +115,12 @@ def register():
         for cls in classes:
             bpy.utils.register_class(cls)
 
-        # register the optional Pro editor classes (no-op in the free edition)
-        editors = utilities.get_editors()
-        if editors is not None:
-            editors.register_classes()
-
         # add menu items
         menus.add_dna_import_menu()
         menus.add_rig_logic_texture_node_menu()
 
-        # start the optional Pro editor runtime services (toast overlay, worker cleanup)
-        if editors is not None:
-            editors.register_runtime()
-
     except Exception as error:
         logger.error(error)
-
-    utilities.init_sentry()
 
     native_runtime.register()
 
@@ -158,12 +139,6 @@ def unregister():
 
     utilities.teardown_scene()
 
-    editors = utilities.get_editors()
-
-    # Stop the optional Pro editor runtime services (solver workers, toast overlay).
-    if editors is not None:
-        editors.unregister_runtime()
-
     # remove event handlers
     for handler_name, handler_function in app_handlers.items():
         handler_list = getattr(bpy.app.handlers, handler_name)
@@ -177,10 +152,6 @@ def unregister():
         # remove menu items
         menus.remove_dna_import_menu()
         menus.remove_rig_logic_texture_node_menu()
-
-        # unregister the optional Pro editor classes (no-op in the free edition)
-        if editors is not None:
-            editors.unregister_classes()
 
         # unregister the core classes
         for cls in reversed(classes):
