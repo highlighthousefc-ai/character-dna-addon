@@ -328,13 +328,6 @@ class CharacterAddonProperties:
     This class holds the properties for the addon.
     """
 
-    metrics_collection: bpy.props.BoolProperty(
-        name="Collect Metrics",
-        default=False,
-        description="This will send anonymous usage data to Poly Hammer to help improve the addon and help catch bugs",
-    )  # pyright: ignore[reportInvalidTypeForm]
-
-    next_metrics_consent_timestamp: bpy.props.FloatProperty(default=0.0)  # pyright: ignore[reportInvalidTypeForm]
     extra_dna_folder_list: bpy.props.CollectionProperty(type=ExtraDnaFolder)  # pyright: ignore[reportInvalidTypeForm]
     extra_dna_folder_list_active_index: bpy.props.IntProperty()  # pyright: ignore[reportInvalidTypeForm]
     show_pro_features: bpy.props.BoolProperty(

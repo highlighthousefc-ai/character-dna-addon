@@ -122,12 +122,10 @@ if TYPE_CHECKING:
         """Typed addon preferences for Character DNA."""
 
         bl_idname: str
-        metrics_collection: bool
         rbf_editor: RBFEditorPreferences
         raw_control_editor: RawControlEditorPreferences
         shape_key_editor: ShapeKeyEditorPreferences
         backup_manager: BackupManagerPreferences
-        next_metrics_consent_timestamp: float
         extra_dna_folder_list: ExtraDnaFolders
         extra_dna_folder_list_active_index: int
 

@@ -36,9 +36,6 @@ class CharacterDnaPreferences(CharacterAddonProperties, bpy.types.AddonPreferenc
 
     def draw(self, context: "Context"):
         layout = self.layout
-        # General Settings
-        row = layout.row()
-        row.prop(self, "metrics_collection", text="Allow Metrics Collection")
 
         # Editor Settings (Pro only). The ``show_pro_features`` toggle lets Pro
         # users preview what the free edition's UI looks like. When the editors

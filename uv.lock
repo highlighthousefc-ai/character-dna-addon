@@ -91,10 +91,10 @@ resolution-markers = [
     "(python_full_version == '3.12.*' and platform_machine == 's390x' and sys_platform == 'darwin') or (python_full_version == '3.12.*' and platform_machine == 's390x' and sys_platform == 'linux') or (python_full_version == '3.12.*' and platform_machine == 's390x' and sys_platform == 'win32') or (python_full_version < '3.13' and platform_machine == 's390x' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "cython", marker = "python_full_version < '3.13'" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "requests", marker = "python_full_version < '3.13'" },
-    { name = "zstandard", marker = "python_full_version < '3.13'" },
+    { name = "cython" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version != '3.12.*'" },
+    { name = "requests" },
+    { name = "zstandard" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/80/ac/b6a3e733f07f70637f86fb16d64d69664a97bdeb7386ab84bd128cb96a31/bpy-5.0.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:92e2a9b62a17d41387a08e9f10fa68e843c2af91e7b1c557b8fd6a52ff1115e8", size = 228420793, upload-time = "2025-12-16T15:01:04.483Z" },
@@ -118,11 +118,11 @@ resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "cattrs", marker = "python_full_version >= '3.13'" },
-    { name = "cython", marker = "python_full_version >= '3.13'" },
-    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "requests", marker = "python_full_version >= '3.13'" },
-    { name = "zstandard", marker = "python_full_version >= '3.13'" },
+    { name = "cattrs" },
+    { name = "cython" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" } },
+    { name = "requests" },
+    { name = "zstandard" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/3a/ebdfeedbefe18641ac541c44bbe433fa363d377fedbabf4fbabb571faf5e/bpy-5.2.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:6b5f9d4e02de90be7100494807a021b60c194c5d5315daef089213b2cdc8cd9d", size = 245126219, upload-time = "2026-07-14T12:14:33.631Z" },
@@ -164,8 +164,8 @@ name = "cattrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs", marker = "python_full_version >= '3.13'" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.13'" },
+    { name = "attrs" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a0/ec/ba18945e7d6e55a58364d9fb2e46049c1c2998b3d805f19b703f14e81057/cattrs-26.1.0.tar.gz", hash = "sha256:fa239e0f0ec0715ba34852ce813986dfed1e12117e209b816ab87401271cdd40", size = 495672, upload-time = "2026-02-18T22:15:19.406Z" }
 wheels = [
@@ -242,9 +242,6 @@ wheels = [
 name = "character-dna-addon"
 version = "0.13.7"
 source = { editable = "." }
-dependencies = [
-    { name = "sentry-sdk" },
-]
 
 [package.optional-dependencies]
 dev = [
@@ -305,7 +302,6 @@ requires-dist = [
     { name = "pytest-dotenv", marker = "extra == 'dev'", specifier = ">=0.5.2" },
     { name = "pytest-html", marker = "extra == 'dev'", specifier = ">=4.1.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
-    { name = "sentry-sdk", specifier = ">=2.52.0" },
 ]
 provides-extras = ["dev", "stubs"]
 
@@ -1360,7 +1356,7 @@ resolution-markers = [
     "python_full_version < '3.12' and platform_machine == 's390x' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' and sys_platform == 'darwin'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:42e8c292f77cca0e06ece266025f3ca50d3864242700f2622718b7c8511da002" },
@@ -1378,7 +1374,7 @@ resolution-markers = [
     "python_full_version < '3.12' and platform_machine == 's390x' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b2b36e6561e9a658777751254e1a178704e90297dc61d706410d732e07cfa897" },
@@ -1396,7 +1392,7 @@ resolution-markers = [
     "python_full_version < '3.12' and platform_machine == 's390x' and sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp311-cp311-win_amd64.whl", hash = "sha256:6ff9c5e80fe4633358144d51c4d8e0922b5afd684746c71f07e89bbad99ec7c4" },
@@ -1414,7 +1410,7 @@ resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' and sys_platform == 'darwin'" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c9cb0fadc24e8eee673a3faf140aef0d5a4ac48044ef7d90f0c4a7a30f40e4c4" },
@@ -1432,7 +1428,7 @@ resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' and sys_platform == 'linux'" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:af4d56f36826b26e3e6c426c58b368bf0185a738a896d506bc560c0bdef5ca01" },
@@ -1450,7 +1446,7 @@ resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" } },
 ]
 wheels = [
     { filename = "pyufbx-0.0.0-cp313-cp313-win_amd64.whl", hash = "sha256:4c451af8f5b2468b735fc2e1ade94647e31c8965eebf1d52ba7f4876e574d409" },
@@ -1587,19 +1583,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/05/04/74127fc843314818edfa81b5540e26dd537353b123a4edc563109d8f17dd/s3transfer-0.16.0.tar.gz", hash = "sha256:8e990f13268025792229cd52fa10cb7163744bf56e719e0b9cb925ab79abf920", size = 153827, upload-time = "2025-12-01T02:30:59.114Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fc/51/727abb13f44c1fcf6d145979e1535a35794db0f6e450a0cb46aa24732fe2/s3transfer-0.16.0-py3-none-any.whl", hash = "sha256:18e25d66fed509e3868dc1572b3f427ff947dd2c56f844a5bf09481ad3f3b2fe", size = 86830, upload-time = "2025-12-01T02:30:57.729Z" },
-]
-
-[[package]]
-name = "sentry-sdk"
-version = "2.57.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/4f/87/46c0406d8b5ddd026f73adaf5ab75ce144219c41a4830b52df4b9ab55f7f/sentry_sdk-2.57.0.tar.gz", hash = "sha256:4be8d1e71c32fb27f79c577a337ac8912137bba4bcbc64a4ec1da4d6d8dc5199", size = 435288, upload-time = "2026-03-31T09:39:29.264Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/64/982e07b93219cb52e1cca5d272cb579e2f3eb001956c9e7a9a6d106c9473/sentry_sdk-2.57.0-py2.py3-none-any.whl", hash = "sha256:812c8bf5ff3d2f0e89c82f5ce80ab3a6423e102729c4706af7413fd1eb480585", size = 456489, upload-time = "2026-03-31T09:39:27.524Z" },
 ]
 
 [[package]]

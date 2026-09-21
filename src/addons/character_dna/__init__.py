@@ -49,9 +49,7 @@ classes = [
     operators.ConfirmAnimationImport,
     operators.BakeFaceBoardAnimation,
     operators.BakeComponentAnimation,
-    operators.TestSentry,
     operators.MigrateLegacyData,
-    operators.MetricsCollectionConsent,
     operators.ForceEvaluate,
     operators.RefreshOutputItems,
     operators.MapRawToGuiControls,
@@ -138,8 +136,6 @@ def register():
 
     except Exception as error:
         logger.error(error)
-
-    utilities.init_sentry()
 
     native_runtime.register()
 

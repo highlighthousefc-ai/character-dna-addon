@@ -25,7 +25,6 @@ class ToolInfo:
     HOW_TO_INSTALL: str = "https://youtu.be/WvJCRUxT5c0"
     INSTALL_TUTORIAL_VIDEO: str = "https://youtu.be/WvJCRUxT5c0"
     GET_PRO: str = "https://polyhammer.com/character-dna-addon"
-    METRICS_COLLECTION_AGREEMENT: str = "https://www.polyhammer.com/dpa"
 
 
 class PanelOrder(IntEnum):
@@ -61,7 +60,6 @@ MATERIAL_PREVIEW_ITEMS_BASE = (
     ("normals", "Normals", "Displays only the color of the normal texture maps", "NONE", 2),
 )
 NUMBER_OF_HEAD_LODS = 8
-SENTRY_DSN = "https://38575ef4609265865b46dcc274249962@sentry.poly-hammer.com/13"
 
 INVALID_NAME_CHARACTERS_REGEX = r"[^-+\w]+"
 LOD_REGEX = r"(?i)(_LOD\d).*"
