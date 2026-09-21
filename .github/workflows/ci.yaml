@@ -27,8 +27,33 @@ jobs:
       - name: Ruff (inherited code, report only)
         run: uvx ruff@${RUFF_VERSION} check --exit-zero src tests scripts
 
+      - name: Ruff (our code, enforced)
+        run: uvx ruff@${RUFF_VERSION} check src/addons/character_dna/dna_core tests_core scripts/ci
+
       - name: Ruff format
-        run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci
+        run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci tests_core
+
+  core:
+    name: dna_core (${{ matrix.os }})
+    needs: [lint]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: python -m pip install pytest
+
+      # Tests that need the OpenRigLogic bindings skip until the bindings build job exists.
+      - name: Run dna_core tests
+        run: python -m pytest tests_core -p no:cacheprovider -rs
 
   register:
     name: Register (${{ matrix.os }}, bpy ${{ matrix.bpy }})
