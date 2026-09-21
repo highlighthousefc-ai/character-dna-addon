@@ -225,14 +225,6 @@ class CharacterOutputProperties(bpy.types.PropertyGroup):
         ),
         default=True,
     )  # pyright: ignore[reportInvalidTypeForm]
-    auto_update_lods: bpy.props.BoolProperty(
-        name="Auto Update LODs",
-        description=(
-            "After calibrating the LOD0 mesh vertex positions, propagate the changes to every lower-LOD "
-            "mesh that is not present in the scene, using UV-space matching against the new LOD0 shape"
-        ),
-        default=True,
-    )  # pyright: ignore[reportInvalidTypeForm]
     export_normals: bpy.props.BoolProperty(
         name="Normals",
         description=(
@@ -330,13 +322,6 @@ class CharacterAddonProperties:
 
     extra_dna_folder_list: bpy.props.CollectionProperty(type=ExtraDnaFolder)  # pyright: ignore[reportInvalidTypeForm]
     extra_dna_folder_list_active_index: bpy.props.IntProperty()  # pyright: ignore[reportInvalidTypeForm]
-    show_pro_features: bpy.props.BoolProperty(
-        name="Show Pro Features",
-        default=True,
-        description=(
-            "Show the Pro editor tools and panels. Disable this to preview what the free edition's UI looks like"
-        ),
-    )  # pyright: ignore[reportInvalidTypeForm]
 
 
 class CharacterImportProperties(get_dna_import_property_group_base_class()):
@@ -468,18 +453,9 @@ def register():
     # register the list data classes first, since the scene property groups depends on them
     bpy.utils.register_class(OutputData)
 
-    # Note: All editors that add properties to RigInstance must be imported and
-    # registered and dynamically assigned to the RigInstance before it is registered.
-    # When the optional Pro editors submodule is absent, this is a no-op.
-    from .utilities import get_editors
-
-    editors = get_editors()
-    if editors is not None:
-        editors.register_property_groups()
-
     # ----------------- Output Properties -----------------
     # Register the output property group and assign it onto the RigInstance before
-    # it is registered, mirroring the editor property-group pattern above.
+    # it is registered.
     bpy.utils.register_class(CharacterOutputProperties)
     RigInstance.__annotations__["output"] = bpy.props.PointerProperty(type=CharacterOutputProperties)
 
@@ -568,14 +544,6 @@ def unregister():
     bpy.utils.unregister_class(RigInstance)
 
     try:
-        # ----------------- Editor Properties -----------------
-        # Unregister the optional Pro editor property groups (no-op when absent).
-        from .utilities import get_editors
-
-        editors = get_editors()
-        if editors is not None:
-            editors.unregister_property_groups()
-
         bpy.utils.unregister_class(CharacterOutputProperties)
         bpy.utils.unregister_class(CharacterViewOptionsProperties)
         bpy.utils.unregister_class(OutputData)

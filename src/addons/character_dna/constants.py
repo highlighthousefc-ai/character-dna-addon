@@ -24,7 +24,6 @@ class ToolInfo:
     EXTENSION_ID: str | None = None
     HOW_TO_INSTALL: str = "https://youtu.be/WvJCRUxT5c0"
     INSTALL_TUTORIAL_VIDEO: str = "https://youtu.be/WvJCRUxT5c0"
-    GET_PRO: str = "https://polyhammer.com/character-dna-addon"
 
 
 class PanelOrder(IntEnum):
@@ -43,7 +42,6 @@ class PanelOrder(IntEnum):
     BACKUP_MANAGER = 90
     OUTPUT = 100
     MIGRATE_LEGACY_DATA = 110
-    PRO_UPSELL = 120
 
 
 Axis = Literal["X", "Y", "Z"]
@@ -334,12 +332,3 @@ LEGACY_DATA_KEYS = ["rig_logic_instance_list"]
 # Used to detect migratable data and to read it regardless of which edition or
 # addon version saved the .blend file.
 MIGRATABLE_DATA_KEYS = ["rig_instance_list", "rig_logic_instance_list"]
-
-PRO_EDITORS = (
-    ("Converter", "RNA"),
-    ("Mesh Editor", "MESH_DATA"),
-    ("Raw Editor", "DECORATE_DRIVER"),
-    ("RBF Editor", "DRIVER_ROTATIONAL_DIFFERENCE"),
-    ("Shape Key Editor", "SHAPEKEY_DATA"),
-    ("Backup Manager", "FILE_BACKUP"),
-)

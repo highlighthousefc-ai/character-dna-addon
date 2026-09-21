@@ -41,20 +41,11 @@ def test_operators(operator_class):
     assert operator_class.is_registered, f"Operator {operator_class.bl_idname} is not registered."
 
 
-def test_edition_specific_registration():
-    """The upsell panel is always registered; editor panels only exist in the Pro edition."""
-    # The upsell panel is always registered in both editions; its poll controls visibility.
-    assert view_3d.CHARACTER_DNA_PT_pro_upsell.is_registered, "The upsell panel should always be registered."
-
-    editors = utilities.get_editors()
-    if utilities.editors_available():
-        assert editors is not None, "Editors submodule present but registry failed to import."
-        raw_control_editor_ui = editors.raw_control_editor_ui  # type: ignore[attr-defined]
-        assert raw_control_editor_ui.CHARACTER_DNA_PT_raw_control_editor.is_registered, (
-            "Pro edition should register the editor panels."
-        )
-    else:
-        assert editors is None, "Free edition should not import an editors registry."
+def test_no_pro_editor_hooks():
+    """The fork ships no Pro editors registry, upsell panel or edition gating."""
+    assert not hasattr(view_3d, "CHARACTER_DNA_PT_pro_upsell")
+    assert not hasattr(utilities, "get_editors")
+    assert not hasattr(utilities, "editors_available")
 
 
 def test_native_runtime_registration_is_repeatable():

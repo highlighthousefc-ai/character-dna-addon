@@ -12,43 +12,6 @@ if TYPE_CHECKING:
     from .bindings.windows.x64.py313.dna import BinaryStreamReader, BinaryStreamWriter  # noqa: TC004
     from .components.body import CharacterComponentBase, CharacterComponentBody  # noqa: TC004
     from .components.head import CharacterComponentHead  # noqa: TC004
-    from .editors.backup_manager.properties import (  # noqa: TC004
-        BackupManagerPreferences,
-        BackupManagerProperties,
-        DnaBackupEntry,
-    )
-    from .editors.behavior_viewer.properties import BehaviorViewerProperties, PsdCorrectiveListItem  # noqa: TC004
-    from .editors.converter.properties import (  # noqa: TC004
-        ConverterExtraMeshItem,
-        ConverterProperties,
-    )
-    from .editors.mesh_editor.properties import (  # noqa: TC004
-        MeshDataTransferItem,
-        MeshEditorProperties,
-        ShimDataItem,
-    )
-    from .editors.raw_control_editor.properties import (  # noqa: TC004
-        RawControlEditorPreferences,
-        RawControlEditorProperties,
-        RawControlListItem,
-        TargetMeshItem,
-    )
-    from .editors.rbf_editor.properties import (  # noqa: TC004
-        RBFDrivenBoneSelectionItem,
-        RBFDrivenData,
-        RBFDriverData,
-        RBFEditorPreferences,
-        RBFEditorProperties,
-        RBFPoseData,
-        RBFSolverData,
-    )
-    from .editors.shape_key_editor.properties import (  # noqa: TC004
-        ShapeKeyData,
-        ShapeKeyDependencyItem,
-        ShapeKeyEditorPreferences,
-        ShapeKeyEditorProperties,
-    )
-    from .editors.shared.rbf_solve import RBFDriverTarget, RBFPoseTarget  # noqa: TC004
     from .operators import BakeAnimationBase, DuplicateRigInstance  # noqa: TC004
     from .properties import (
         CharacterAddonProperties,
@@ -78,42 +41,17 @@ if TYPE_CHECKING:
         def remove(self, index: int) -> None: ...
         def clear(self) -> None: ...
 
-    class DnaBackupEntrys(bpy_prop_collection[DnaBackupEntry], bpy_struct):
-        def add(self) -> DnaBackupEntry: ...
-        def move(self, src_index: int, dst_index: int) -> None: ...
-        def remove(self, index: int) -> None: ...
-        def clear(self) -> None: ...
-
-    class RBFSolvers(bpy_prop_collection[RBFSolverData], bpy_struct):
-        def add(self) -> RBFSolverData: ...
-        def move(self, src_index: int, dst_index: int) -> None: ...
-        def remove(self, index: int) -> None: ...
-        def clear(self) -> None: ...
-
     # =========================================================================
-    # Extended RigInstance with dynamically assigned editor properties
+    # Extended RigInstance with dynamically assigned properties
     # These are added at runtime in properties.py register() function
     # =========================================================================
     class RigInstance(_RigInstanceBase):
         """Extended RigInstance type with dynamically registered properties."""
 
-        backup_manager: BackupManagerProperties
-        rbf_editor: RBFEditorProperties
-        raw_control_editor: RawControlEditorProperties
-        behavior_viewer: BehaviorViewerProperties
-        shape_key_editor: ShapeKeyEditorProperties
         output: CharacterOutputProperties
         view_options: CharacterViewOptionsProperties
 
-    # =========================================================================
-    # Extended CharacterWindowManagerProperties with dynamically assigned editor properties
-    # These are added at runtime in properties.py register() function
-    # =========================================================================
-    class CharacterWindowManagerProperties(_CharacterWindowManagerProperties):
-        """Extended WindowManager properties with RBF Editor properties."""
-
-        add_pose_driven_bones: bpy_prop_collection[RBFDrivenBoneSelectionItem]
-        add_pose_driven_bones_active_index: int
+    CharacterWindowManagerProperties = _CharacterWindowManagerProperties
 
     # =========================================================================
     # Addon Preferences Types
@@ -122,10 +60,6 @@ if TYPE_CHECKING:
         """Typed addon preferences for Character DNA."""
 
         bl_idname: str
-        rbf_editor: RBFEditorPreferences
-        raw_control_editor: RawControlEditorPreferences
-        shape_key_editor: ShapeKeyEditorPreferences
-        backup_manager: BackupManagerPreferences
         extra_dna_folder_list: ExtraDnaFolders
         extra_dna_folder_list_active_index: int
 
@@ -178,7 +112,6 @@ if TYPE_CHECKING:
     __all__ = [
         "BakeAnimationBase",
         "BakeAnimationBase",
-        "BehaviorViewerProperties",
         "BinaryStreamReader",
         "BinaryStreamWriter",
         "CharacterAddonPreferences",
@@ -194,37 +127,13 @@ if TYPE_CHECKING:
         "ClassVar",
         "ComponentType",
         "Context",
-        "ConverterExtraMeshItem",
-        "ConverterProperties",
-        "DnaBackupEntry",
         "DuplicateRigInstance",
-        "MeshDataTransferItem",
-        "MeshEditorProperties",
         "OutputData",
         "Preferences",
-        "PsdCorrectiveListItem",
-        "RBFDrivenBoneSelectionItem",
-        "RBFDrivenData",
-        "RBFDriverData",
-        "RBFDriverTarget",
-        "RBFEditorPreferences",
-        "RBFEditorProperties",
-        "RBFPoseData",
-        "RBFPoseTarget",
-        "RBFSolverData",
-        "RawControlEditorPreferences",
-        "RawControlEditorProperties",
-        "RawControlListItem",
         "RigDefinition",
         "RigInstance",
         "RigJointGroup",
         "Scene",
-        "ShapeKeyData",
-        "ShapeKeyDependencyItem",
-        "ShapeKeyEditorPreferences",
-        "ShapeKeyEditorProperties",
-        "ShimDataItem",
-        "TargetMeshItem",
         "WindowManager",
         "dna",
         "riglogic",

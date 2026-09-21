@@ -324,10 +324,6 @@ class RigInstance(bpy.types.PropertyGroup):
         return result
 
     @property
-    def is_pro(self) -> bool:
-        return utilities.pro_features_visible()
-
-    @property
     def head_valid(self) -> bool:
         logged_warning = self.data.get(self.cache_key("head", "logged_validation_warning"), False)
 
@@ -508,9 +504,8 @@ class RigInstance(bpy.types.PropertyGroup):
         if shape_key_blocks is None:
             mesh_index = 0  # this is the head lod 0 mesh index
             shape_key_blocks = {}
-            # Ordered, namespaced block names backing the UI shape key list. Kept as plain
-            # strings (undo-safe) and written to the scene-side `shape_key_list` collection
-            # separately by `sync_shape_key_list`. This getter only writes to `self.data`
+            # Ordered, namespaced block names, kept as plain strings (undo-safe).
+            # This getter only writes to `self.data`
             # (never ID data), so it is safe to call from a property getter / UI draw -- e.g.
             # when undo clears the volatile block cache via `destroy_references`.
             shape_key_block_names: list[str] = []
@@ -624,31 +619,6 @@ class RigInstance(bpy.types.PropertyGroup):
 
         self.data[self.cache_key("head", "shape_key_apply_plan")] = plan
         return plan
-
-    def sync_shape_key_list(self) -> None:
-        """Rebuild the UI shape-key list -- a ``CollectionProperty`` on the scene-stored
-        ``ShapeKeyEditorProperties`` -- from the cached block names.
-
-        This writes ID data, so it must only be called from a write-safe context such as
-        ``head_initialize`` or an operator, never from a property getter or UI draw. The
-        list is undo-tracked by Blender, so it does not need rebuilding on undo; only the
-        volatile ``shape_key_blocks`` wrapper cache does (see ``destroy_references``)."""
-        shape_key_editor: ShapeKeyEditorProperties | None = getattr(self, "shape_key_editor", None)
-        if not shape_key_editor:
-            return
-
-        # Ensure the block cache (and its ordered names) exist before mirroring them.
-        self.head_shape_key_blocks  # noqa: B018
-        shape_key_block_names = self.data.get(self.cache_key("head", "shape_key_block_names"), [])
-
-        # The has-deltas map is derived from the live block coords; drop it so it
-        # recomputes lazily against the freshly synced blocks.
-        self.data.pop(self.cache_key("head", "shape_key_has_deltas"), None)
-
-        shape_key_editor.shape_key_list.clear()
-        for shape_key_block_name in shape_key_block_names:
-            shape_key_item = shape_key_editor.shape_key_list.add()
-            shape_key_item.name = shape_key_block_name
 
     @property
     def head_rest_pose(self) -> dict[str, tuple[Vector, Euler, Vector, Matrix]]:
@@ -1054,10 +1024,6 @@ class RigInstance(bpy.types.PropertyGroup):
         )
         self.data[self.cache_key("head", "instance")] = riglogic.RigInstance(rigLogic=self.head_manager, memRes=None)
 
-        # populate the body rbf solver list
-        if update_raw_control_list:
-            self.update_head_raw_control_list()
-
         # calling theses properties will cache their values
         self.head_texture_masks_node  # noqa: B018
         self.head_mesh_index_lookup  # noqa: B018
@@ -1065,8 +1031,6 @@ class RigInstance(bpy.types.PropertyGroup):
         self.head_channel_index_to_mesh_index_lookup  # noqa: B018
         self.head_shape_key_blocks  # noqa: B018
         self.head_shape_key_apply_plan  # noqa: B018
-        # Mirror the cached blocks into the scene-side UI list now (write-safe context).
-        self.sync_shape_key_list()
         self.head_driven_bone_names  # noqa: B018
         self.head_driver_bone_names  # noqa: B018
         self.head_rest_pose  # noqa: B018
@@ -1129,10 +1093,6 @@ class RigInstance(bpy.types.PropertyGroup):
         self.data[self.cache_key("body", "manager")] = riglogic.RigLogic(self.body_dna_reader, body_config, None)
         self.data[self.cache_key("body", "instance")] = riglogic.RigInstance(rigLogic=self.body_manager, memRes=None)
 
-        # populate the body rbf solver list
-        if update_rbf_solver_list:
-            self.update_body_rbf_solver_list()
-
         # calling theses properties will cache their values
         self.body_rest_pose  # noqa: B018
         self.body_twist_bone_names  # noqa: B018
@@ -1148,10 +1108,6 @@ class RigInstance(bpy.types.PropertyGroup):
     def initialize(self):
         self.head_initialize()
         self.body_initialize()
-        if self.is_pro:
-            from .editors.backup_manager.core import sync_backup_list_with_disk as _sync_backup_list_with_disk
-
-            _sync_backup_list_with_disk(instance=self)  # pyright: ignore[reportArgumentType]
 
     def _release_rig_logic(self, component: str):
         """Free a component's RigLogic handles in the order OpenRigLogic requires.
@@ -1377,22 +1333,6 @@ class RigInstance(bpy.types.PropertyGroup):
                 )
 
         return texture_mask_values
-
-    def update_body_rbf_solver_list(self):
-        try:
-            from .editors.rbf_editor.callbacks import update_body_rbf_solver_list as _update
-
-            _update(self)  # pyright: ignore[reportArgumentType]
-        except ImportError:
-            logger.debug("Could not import the RBF editor module to update the body RBF solver list.")
-
-    def update_head_raw_control_list(self):
-        try:
-            from .editors.raw_control_editor.callbacks import update_head_raw_control_list as _update
-
-            _update(self)  # pyright: ignore[reportArgumentType]
-        except ImportError:
-            logger.debug("Could not import the raw control editor module to update the head raw control list.")
 
     def evaluate(self, component: "ComponentType" = "all", dependency_graph: bpy.types.Depsgraph | None = None):
         """Update live drivers and explicitly sample requested disabled components."""

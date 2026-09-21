@@ -429,7 +429,7 @@ class CharacterComponentBase(metaclass=ABCMeta):
                     except Exception as error:
                         logger.error(f"Failed to set colorspace for {node.image.name}: {error}")  # type: ignore[attr-defined]
 
-        # load the placeholder mask/topology textures and fix up the texture logic node groups
+        # load the placeholder mask texture and fix up the texture logic node groups
         utilities.setup_texture_logic_node_groups(self.component_type)  # pyright: ignore[reportArgumentType]
 
     def _purge_existing_materials(self):
@@ -439,22 +439,10 @@ class CharacterComponentBase(metaclass=ABCMeta):
             if material:
                 bpy.data.materials.remove(material)
 
-        shared_constants = utilities.get_topology_texture_constants()
         if self.component_type == "head":
             masks_image = bpy.data.images.get(MASKS_TEXTURE)
             if masks_image:
                 bpy.data.images.remove(masks_image)
-
-            if shared_constants:
-                head_topology_image = bpy.data.images.get(shared_constants.HEAD_TOPOLOGY_TEXTURE)
-                if head_topology_image:
-                    bpy.data.images.remove(head_topology_image)
-
-        elif self.component_type == "body":
-            if shared_constants:
-                body_topology_image = bpy.data.images.get(shared_constants.BODY_TOPOLOGY_TEXTURE)
-                if body_topology_image:
-                    bpy.data.images.remove(body_topology_image)
 
     def _delete_rig_instance(self):
         if (

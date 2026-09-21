@@ -147,26 +147,15 @@ def get_body_texture_logic_node(material: bpy.types.Material) -> bpy.types.Shade
 def get_active_material_preview(self: "CharacterViewOptionsProperties") -> int:
     value = self.get("active_material_preview", 0)
     if value >= len(MATERIAL_PREVIEW_ITEMS_BASE):
-        instance = _get_view_options_owner(self)
-        if not instance or not instance.is_pro:
-            return 0
+        return 0
     return value
 
 
 def get_active_material_preview_items(
-    self: "CharacterViewOptionsProperties", context: "Context"
+    self: "CharacterViewOptionsProperties",  # noqa: ARG001
+    context: "Context",  # noqa: ARG001
 ) -> tuple[tuple[str, str, str, str, int], ...]:
-    """Dynamic items for the material-color preview enum.
-
-    The free edition exposes Combined / Masks / Normals. The Pro edition appends the Topology
-    preview (always last), resolved from the ``editors/shared`` submodule and gated on the
-    owning rig instance being Pro.
-    """
-    instance = _get_view_options_owner(self)
-    if instance and instance.is_pro:
-        from ..editors.shared import callbacks as shared_callbacks
-
-        return shared_callbacks.get_active_material_preview_items(self, context)
+    """Dynamic items for the material-color preview enum: Combined / Masks / Normals."""
     return MATERIAL_PREVIEW_ITEMS_BASE
 
 
@@ -859,19 +848,12 @@ def poll_body_mesh(self: "RigInstance", scene_object: bpy.types.Object) -> bool:
     return scene_object.type == "MESH" and scene_object.name in bpy.data.objects
 
 
-def update_evaluate_rbfs_value(self: "RigInstance", context: "Context"):
+def update_evaluate_rbfs_value(self: "RigInstance", context: "Context"):  # noqa: ARG001
     from ..runtime.engine import sync_settings
 
     if is_reference_readonly(self):
         return
     sync_settings(self)
-    # Avoid circular import
-    try:
-        from ..editors.rbf_editor.utilities import update_evaluate_rbfs_value as _update
-
-        _update(self, context)
-    except ImportError:
-        logger.debug("Core module missing. This function will not work.")
 
 
 def _apply_reference_face_pose(instance: "RigInstance", preview: str) -> None:
