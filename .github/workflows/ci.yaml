@@ -46,6 +46,11 @@ jobs:
       run:
         shell: bash
     steps:
+      # Windows runners default to core.autocrlf=true, which turns OpenRigLogic's sources into
+      # CRLF and makes the LF patch fail to apply.
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v6
 
       - name: Check out OpenRigLogic
