@@ -56,9 +56,8 @@ if sys.version_info.major == 3 and sys.version_info.minor == 11:
 elif sys.version_info.major == 3 and sys.version_info.minor == 13:
     PYTHON_VERSION = "py313"
 
-# CI-specific paths for sibling repos (when checked out side-by-side in GitHub Actions)
-BINDINGS_SOURCE_PATH = ADDON_ROOT.parent / "character-dna-bindings"
-CORE_SOURCE_PATH = ADDON_ROOT.parent / "character-dna-core"
+# Optional bindings folder laid out as <os>/<arch>/<pyXYZ>/ (e.g. a CI build artifact)
+BINDINGS_SOURCE_PATH = Path(os.environ.get("CHARACTER_DNA_BINDINGS_DIR", ADDON_ROOT / "no-bindings-source"))
 BINDINGS_DEST_PATH = ADDON_ROOT / "src" / "addons" / "character_dna" / "bindings"
 
 if str(SRC_PATH) not in sys.path:
@@ -162,7 +161,7 @@ def setup_environment() -> bool:
     if not bindings_specific_dest.exists():
         if not bindings_specific_source.exists():
             print(f"  ✗ Bindings not found at {bindings_specific_source}")
-            print("    Please ensure character-dna-bindings is available.")
+            print("    Set CHARACTER_DNA_BINDINGS_DIR or place the bindings in the addon's bindings folder.")
             return False
 
         print(f"  Copying bindings from {bindings_specific_source}...")

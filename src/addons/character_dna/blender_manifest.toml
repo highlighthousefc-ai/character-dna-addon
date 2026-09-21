@@ -68,7 +68,7 @@ for Epic Games' MetaHuman DNA file format.
 ## Requirements
 
 - Blender 4.5 or newer
-- Platform-specific RigLogic bindings (available at polyhammer.com)
+- Platform-specific OpenRigLogic bindings (bundled in the per-platform package)
 
 For detailed documentation, visit: https://docs.polyhammer.com/character-dna-addon/
 """
