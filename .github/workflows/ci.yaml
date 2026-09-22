@@ -38,10 +38,20 @@ jobs:
       - name: Ruff format
         run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci tests_core bindings-build
 
-  bindings-windows:
-    name: Build bindings (windows-x64, py313)
+  bindings:
+    name: Build bindings (${{ matrix.platform }}, py313)
     needs: [lint]
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            tools: pefile
+          - os: macos-latest
+            platform: macos-arm64
+            tools: ninja
     defaults:
       run:
         shell: bash
@@ -65,7 +75,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install build tools
-        run: python -m pip install "swig==${SWIG_VERSION}" pefile
+        run: python -m pip install "swig==${SWIG_VERSION}" ${{ matrix.tools }}
 
       - name: Tool versions
         run: |
@@ -81,32 +91,22 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bindings-windows-x64-py313
+          name: bindings-${{ matrix.platform }}-py313
           path: staged-bindings/
           if-no-files-found: error
 
   core:
-    name: dna_core (macos-latest, no bindings)
-    needs: [lint]
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install pytest
-        run: python -m pip install pytest
-
-      # Binding-dependent tests skip here until a macOS bindings build job exists.
-      - name: Run dna_core tests
-        run: python -m pytest tests_core -p no:cacheprovider -rs
-
-  core-windows:
-    name: dna_core (windows-latest, with bindings)
-    needs: [bindings-windows]
-    runs-on: windows-latest
+    name: dna_core (${{ matrix.platform }}, with bindings)
+    needs: [bindings]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: macos-latest
+            platform: macos-arm64
     env:
       CHARACTER_DNA_BINDINGS_DIR: ${{ github.workspace }}/staged-bindings
       CHARACTER_DNA_REQUIRE_BINDINGS: "1"
@@ -115,7 +115,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: bindings-windows-x64-py313
+          name: bindings-${{ matrix.platform }}-py313
           path: staged-bindings
 
       - uses: actions/setup-python@v6
@@ -129,34 +129,19 @@ jobs:
         run: python -m pytest tests_core -p no:cacheprovider -v -rs
 
   register:
-    name: Register (macos-latest, bpy ${{ matrix.bpy }})
-    needs: [lint]
-    runs-on: macos-latest
+    name: Register with bindings (${{ matrix.platform }}, bpy ${{ matrix.bpy }})
+    needs: [bindings]
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest, macos-latest]
         bpy: ["5.1.*", "5.2.*"]
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install bpy
-        run: python -m pip install "bpy==${{ matrix.bpy }}"
-
-      - name: Register and unregister the addon
-        run: python scripts/ci/register_smoke.py
-
-  register-windows:
-    name: Register with bindings (windows-latest, bpy ${{ matrix.bpy }})
-    needs: [bindings-windows]
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        bpy: ["5.1.*", "5.2.*"]
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: macos-latest
+            platform: macos-arm64
     env:
       # The addon's loader raises instead of falling back to fake modules when this is set.
       RUNNING_CI: "1"
@@ -165,7 +150,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: bindings-windows-x64-py313
+          name: bindings-${{ matrix.platform }}-py313
           path: src/addons/character_dna/bindings
 
       - uses: actions/setup-python@v6
@@ -181,52 +166,84 @@ jobs:
       - name: Round-trip and evaluate through the addon's bindings
         run: python scripts/ci/bindings_in_addon.py
 
-  blender-windows:
-    name: Real Blender 5.1.2 (windows-x64)
-    needs: [bindings-windows]
-    runs-on: windows-latest
+  package:
+    name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)
+    needs: [bindings]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            blender_archive: windows-x64.zip
+          - os: macos-latest
+            platform: macos-arm64
+            blender_archive: macos-arm64.dmg
     defaults:
       run:
         shell: bash
-    env:
-      RUNNING_CI: "1"
     steps:
+      # Keep the zip's text files byte-identical across platforms (no CRLF conversion on Windows).
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v6
 
+      # Only this platform's bindings: --split-platforms filters wheels, not other files.
       - uses: actions/download-artifact@v4
         with:
-          name: bindings-windows-x64-py313
+          name: bindings-${{ matrix.platform }}-py313
           path: src/addons/character_dna/bindings
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
       - name: Cache Blender
         id: blender-cache
         uses: actions/cache@v4
         with:
           path: blender
-          key: blender-${{ env.BLENDER_VERSION }}-windows-x64
+          key: blender-${{ env.BLENDER_VERSION }}-${{ matrix.blender_archive }}
 
       - name: Download Blender
         if: steps.blender-cache.outputs.cache-hit != 'true'
         run: |
-          curl -fsSL -o blender.zip "https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-windows-x64.zip"
-          7z x -y -oblender blender.zip > /dev/null
-          rm blender.zip
+          url="https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-${{ matrix.blender_archive }}"
+          curl -fsSL -o blender-archive "$url"
+          mkdir -p blender
+          if [[ "${{ matrix.blender_archive }}" == *.zip ]]; then
+            7z x -y -oblender blender-archive > /dev/null
+          else
+            hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/blender-dmg" blender-archive > /dev/null
+            cp -R "$RUNNER_TEMP/blender-dmg/Blender.app" blender/
+            hdiutil detach "$RUNNER_TEMP/blender-dmg" > /dev/null
+          fi
+          rm blender-archive
 
-      # Informational: records which Python/runtime files Blender for Windows bundles.
-      - name: Inspect Blender's bundled Python
+      - name: Locate Blender
         run: |
-          set +e +o pipefail
-          B="$(ls -d blender/blender-*)"
-          echo "== top level"; ls "$B"
-          echo "== blender.shared"; ls "$B/blender.shared" 2>&1 | head -80
-          echo "== python files"; find "$B" \( -iname 'python3*.dll' -o -iname 'python3*.lib' -o -iname 'pyconfig.h' -o -iname 'Python.h' -o -iname 'python*.exe' \) | sort
-          echo "== $B/${BLENDER_SERIES}/python"; ls "$B/${BLENDER_SERIES}/python"
-          echo "== include folder"; ls "$B/${BLENDER_SERIES}/python/include" 2>&1 | head -3
-          echo "== libs folder"; ls "$B/${BLENDER_SERIES}/python/libs" 2>&1 | head -3
-          "$B/blender.exe" --background --factory-startup --python-expr "import sys, sysconfig; print('PYTHON', sys.version); print('EXECUTABLE', sys.executable); print('EXT_SUFFIX', sysconfig.get_config_var('EXT_SUFFIX'))" 2>&1 | grep -E '^(PYTHON|EXECUTABLE|EXT_SUFFIX)'
-          exit 0
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "BLENDER=$(ls -d "$PWD"/blender/blender-*)/blender.exe" >> "$GITHUB_ENV"
+          else
+            echo "BLENDER=$PWD/blender/Blender.app/Contents/MacOS/Blender" >> "$GITHUB_ENV"
+          fi
 
-      - name: Round-trip and evaluate through the addon in Blender
+      - name: Build the ${{ matrix.platform }} extension zip
+        run: python scripts/ci/package_extension.py --blender "$BLENDER" --platform ${{ matrix.platform }} --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: character_dna-${{ matrix.platform }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Install into a throwaway Blender profile
         run: |
-          B="$(ls -d blender/blender-*)"
-          "$B/blender.exe" --background --factory-startup --python-exit-code 1 --python scripts/ci/bindings_in_addon.py
+          echo "BLENDER_USER_RESOURCES=$RUNNER_TEMP/blender-profile" >> "$GITHUB_ENV"
+          BLENDER_USER_RESOURCES="$RUNNER_TEMP/blender-profile" "$BLENDER" --command extension install-file -r user_default -e dist/*.zip
+
+      # No --factory-startup: the extension must load from the throwaway profile's preferences.
+      - name: Check the installed extension
+        run: '"$BLENDER" --background --python-exit-code 1 --python scripts/ci/installed_extension_check.py'

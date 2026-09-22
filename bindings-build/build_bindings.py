@@ -125,9 +125,11 @@ def check_windows_imports(target: Path) -> None:
 
 def check_macos_links(target: Path) -> None:
     for library in sorted(target.glob("*.so")):
-        links = subprocess.run(["otool", "-L", str(library)], check=True, capture_output=True, text=True).stdout
-        print(links)
-        if "@rpath" in links or "/Users/" in links:
+        output = subprocess.run(["otool", "-L", str(library)], check=True, capture_output=True, text=True).stdout
+        print(output)
+        # The first line is the library's own path; only the linked libraries matter.
+        links = [line.split(" (")[0].strip() for line in output.splitlines()[1:] if line.strip()]
+        if any(link.startswith(("@rpath", "/Users/")) for link in links):
             raise RuntimeError(f"{library.name} still links through an rpath or absolute build path")
 
 
