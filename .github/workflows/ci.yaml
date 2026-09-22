@@ -184,6 +184,10 @@ jobs:
       run:
         shell: bash
     steps:
+      # Keep the zip's text files byte-identical across platforms (no CRLF conversion on Windows).
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v6
 
       # Only this platform's bindings: --split-platforms filters wheels, not other files.
