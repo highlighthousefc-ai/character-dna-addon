@@ -46,7 +46,14 @@ def main() -> None:
     if not user_resources:
         fail("Run this with BLENDER_USER_RESOURCES set to a throwaway profile")
 
-    source_paths = [entry for entry in sys.path if str(REPO_ROOT) in entry]
+    # In CI the downloaded Blender lives inside the checkout, so ignore Blender's own paths
+    # (everything under the folder holding its versioned "5.x" resources).
+    blender_root = Path(bpy.utils.resource_path("LOCAL")).parent
+    source_paths = [
+        entry
+        for entry in sys.path
+        if Path(entry).is_relative_to(REPO_ROOT) and not Path(entry).is_relative_to(blender_root)
+    ]
     if source_paths:
         fail(f"sys.path points into the source checkout: {source_paths}")
 
