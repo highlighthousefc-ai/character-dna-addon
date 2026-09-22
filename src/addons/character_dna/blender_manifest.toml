@@ -127,7 +127,7 @@ paths_exclude_pattern = [
     ".mypy_cache/",
     "*.md",
     "requirements.txt",
-    "bindings/windows",
-    "bindings/macos",
-    "bindings/linux",
+    # Compiled OpenRigLogic bindings in bindings/<os>/ are NOT excluded: --split-platforms only
+    # filters wheels, so scripts/ci/package_extension.py builds each platform's zip from a tree
+    # that holds only that platform's bindings.
 ]

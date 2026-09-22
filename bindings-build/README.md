@@ -52,3 +52,16 @@ checks their dependencies, and imports both from the staged folder.
   (set `CHARACTER_DNA_REQUIRE_BINDINGS=1` to fail instead of skip when they are missing).
 - `scripts/ci/bindings_in_addon.py` loads them through the addon's own loader inside Blender and
   round-trips and evaluates a synthetic DNA.
+
+## Packaging
+
+`scripts/ci/package_extension.py` builds one platform's extension zip with
+`blender --command extension build --split-platforms`. Blender's split only filters **wheels**
+(`pyufbx`) by platform tag; every other file, including `bindings/<os>/`, goes into every zip. So
+the source tree must hold only that platform's bindings (the script refuses otherwise), and the
+script keeps only the matching `character_dna-<version>-<platform>.zip` and checks its contents.
+
+`scripts/ci/installed_extension_check.py` then runs in Blender after
+`blender --command extension install-file -r user_default -e <zip>` into a throwaway
+`BLENDER_USER_RESOURCES` profile, and checks the extension, its bindings and its wheel all load
+from that profile with no `sys.path` changes and no Blender extension-policy warnings.
