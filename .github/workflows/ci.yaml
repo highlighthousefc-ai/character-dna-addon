@@ -13,6 +13,11 @@ permissions:
 
 env:
   RUFF_VERSION: "0.15.8"
+  # OpenRigLogic 13.2.9 (main @ 1b20901); bindings-build/openriglogic-blender.patch applies to it.
+  OPENRIGLOGIC_SHA: "1b20901ec6fcef119eed71a23a60ae10b3c83a44"
+  SWIG_VERSION: "4.2.1"
+  BLENDER_VERSION: "5.1.2"
+  BLENDER_SERIES: "5.1"
 
 jobs:
   lint:
@@ -28,19 +33,62 @@ jobs:
         run: uvx ruff@${RUFF_VERSION} check --exit-zero src tests scripts
 
       - name: Ruff (our code, enforced)
-        run: uvx ruff@${RUFF_VERSION} check src/addons/character_dna/dna_core tests_core scripts/ci
+        run: uvx ruff@${RUFF_VERSION} check src/addons/character_dna/dna_core tests_core scripts/ci bindings-build
 
       - name: Ruff format
-        run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci tests_core
+        run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci tests_core bindings-build
+
+  bindings-windows:
+    name: Build bindings (windows-x64, py313)
+    needs: [lint]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Windows runners default to core.autocrlf=true, which turns OpenRigLogic's sources into
+      # CRLF and makes the LF patch fail to apply.
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v6
+
+      - name: Check out OpenRigLogic
+        uses: actions/checkout@v6
+        with:
+          repository: EpicGames/OpenRigLogic
+          ref: ${{ env.OPENRIGLOGIC_SHA }}
+          path: OpenRigLogic
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install build tools
+        run: python -m pip install "swig==${SWIG_VERSION}" pefile
+
+      - name: Tool versions
+        run: |
+          python --version
+          cmake --version | head -1
+          swig -version | grep -i version
+
+      - name: Apply patch
+        run: git -C OpenRigLogic apply ../bindings-build/openriglogic-blender.patch
+
+      - name: Build and stage
+        run: python bindings-build/build_bindings.py --source OpenRigLogic --build build/openriglogic --out staged-bindings
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bindings-windows-x64-py313
+          path: staged-bindings/
+          if-no-files-found: error
 
   core:
-    name: dna_core (${{ matrix.os }})
+    name: dna_core (macos-latest, no bindings)
     needs: [lint]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -51,18 +99,42 @@ jobs:
       - name: Install pytest
         run: python -m pip install pytest
 
-      # Tests that need the OpenRigLogic bindings skip until the bindings build job exists.
+      # Binding-dependent tests skip here until a macOS bindings build job exists.
       - name: Run dna_core tests
         run: python -m pytest tests_core -p no:cacheprovider -rs
 
+  core-windows:
+    name: dna_core (windows-latest, with bindings)
+    needs: [bindings-windows]
+    runs-on: windows-latest
+    env:
+      CHARACTER_DNA_BINDINGS_DIR: ${{ github.workspace }}/staged-bindings
+      CHARACTER_DNA_REQUIRE_BINDINGS: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-windows-x64-py313
+          path: staged-bindings
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: python -m pip install pytest
+
+      - name: Run dna_core tests
+        run: python -m pytest tests_core -p no:cacheprovider -v -rs
+
   register:
-    name: Register (${{ matrix.os }}, bpy ${{ matrix.bpy }})
+    name: Register (macos-latest, bpy ${{ matrix.bpy }})
     needs: [lint]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
         bpy: ["5.1.*", "5.2.*"]
     steps:
       - uses: actions/checkout@v6
@@ -76,3 +148,85 @@ jobs:
 
       - name: Register and unregister the addon
         run: python scripts/ci/register_smoke.py
+
+  register-windows:
+    name: Register with bindings (windows-latest, bpy ${{ matrix.bpy }})
+    needs: [bindings-windows]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bpy: ["5.1.*", "5.2.*"]
+    env:
+      # The addon's loader raises instead of falling back to fake modules when this is set.
+      RUNNING_CI: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-windows-x64-py313
+          path: src/addons/character_dna/bindings
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install bpy
+        run: python -m pip install "bpy==${{ matrix.bpy }}"
+
+      - name: Register and unregister the addon
+        run: python scripts/ci/register_smoke.py
+
+      - name: Round-trip and evaluate through the addon's bindings
+        run: python scripts/ci/bindings_in_addon.py
+
+  blender-windows:
+    name: Real Blender 5.1.2 (windows-x64)
+    needs: [bindings-windows]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUNNING_CI: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-windows-x64-py313
+          path: src/addons/character_dna/bindings
+
+      - name: Cache Blender
+        id: blender-cache
+        uses: actions/cache@v4
+        with:
+          path: blender
+          key: blender-${{ env.BLENDER_VERSION }}-windows-x64
+
+      - name: Download Blender
+        if: steps.blender-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o blender.zip "https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-windows-x64.zip"
+          7z x -y -oblender blender.zip > /dev/null
+          rm blender.zip
+
+      # Informational: records which Python/runtime files Blender for Windows bundles.
+      - name: Inspect Blender's bundled Python
+        run: |
+          set +e +o pipefail
+          B="$(ls -d blender/blender-*)"
+          echo "== top level"; ls "$B"
+          echo "== blender.shared"; ls "$B/blender.shared" 2>&1 | head -80
+          echo "== python files"; find "$B" \( -iname 'python3*.dll' -o -iname 'python3*.lib' -o -iname 'pyconfig.h' -o -iname 'Python.h' -o -iname 'python*.exe' \) | sort
+          echo "== $B/${BLENDER_SERIES}/python"; ls "$B/${BLENDER_SERIES}/python"
+          echo "== include folder"; ls "$B/${BLENDER_SERIES}/python/include" 2>&1 | head -3
+          echo "== libs folder"; ls "$B/${BLENDER_SERIES}/python/libs" 2>&1 | head -3
+          "$B/blender.exe" --background --factory-startup --python-expr "import sys, sysconfig; print('PYTHON', sys.version); print('EXECUTABLE', sys.executable); print('EXT_SUFFIX', sysconfig.get_config_var('EXT_SUFFIX'))" 2>&1 | grep -E '^(PYTHON|EXECUTABLE|EXT_SUFFIX)'
+          exit 0
+
+      - name: Round-trip and evaluate through the addon in Blender
+        run: |
+          B="$(ls -d blender/blender-*)"
+          "$B/blender.exe" --background --factory-startup --python-exit-code 1 --python scripts/ci/bindings_in_addon.py

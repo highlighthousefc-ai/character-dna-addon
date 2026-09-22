@@ -1,0 +1,56 @@
+diff --git a/python/dna/CMakeLists.txt b/python/dna/CMakeLists.txt
+index dd67edf..00a1435 100644
+--- a/python/dna/CMakeLists.txt
++++ b/python/dna/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-find_package(Python3 ${DNA_BUILD_PYTHON_WRAPPER} EXACT COMPONENTS Interpreter Development)
++find_package(Python3 ${DNA_BUILD_PYTHON_WRAPPER} EXACT COMPONENTS Interpreter Development.Module)
+ find_package(SWIG REQUIRED)
+ include(UseSWIG)
+ 
+@@ -22,7 +22,7 @@ swig_add_library(${PYDNA}
+         DNA.i)
+ add_library(PyDNA::${PYDNA} ALIAS ${PYDNA})
+ 
+-list(APPEND SWIG_COMPILE_DEFINITIONS SWIG_TYPE_TABLE="${PYDNA}-${PROJECT_VERSION}")
++list(APPEND SWIG_COMPILE_DEFINITIONS SWIG_TYPE_TABLE=${PYDNA}_${PROJECT_VERSION_MAJOR}_${PROJECT_VERSION_MINOR}_${PROJECT_VERSION_PATCH})
+ if(DNA_BUILD_WITH_JSON_SUPPORT)
+     list(APPEND SWIG_COMPILE_DEFINITIONS DNA_BUILD_WITH_JSON_SUPPORT=ON)
+ endif()
+@@ -38,7 +38,7 @@ target_link_libraries(${PYDNA}
+     PUBLIC
+         ${PYDNA_DEPENDENCIES}
+     PRIVATE
+-        Python3::Python)
++        Python3::Module)
+ 
+ set(component_name dna)  # Make sure py3dna and dna targets are under the same dna component name
+ get_property(wrapper_files TARGET ${PYDNA} PROPERTY SWIG_SUPPORT_FILES)
+diff --git a/python/riglogic/CMakeLists.txt b/python/riglogic/CMakeLists.txt
+index c8256db..0d8490c 100644
+--- a/python/riglogic/CMakeLists.txt
++++ b/python/riglogic/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-find_package(Python3 ${RL_BUILD_PYTHON_WRAPPER} EXACT COMPONENTS Interpreter Development)
++find_package(Python3 ${RL_BUILD_PYTHON_WRAPPER} EXACT COMPONENTS Interpreter Development.Module)
+ find_package(SWIG REQUIRED)
+ include(UseSWIG)
+ 
+@@ -31,7 +31,7 @@ function(get_swig_type_table_name target_name output_var)
+ endfunction()
+ 
+ get_swig_type_table_name(PyDNA::py3dna pydna_type_table)
+-list(APPEND SWIG_COMPILE_DEFINITIONS SWIG_TYPE_TABLE="${PYRL}-${PROJECT_VERSION}" PYDNA_SWIG_TYPE_TABLE=${pydna_type_table})
++list(APPEND SWIG_COMPILE_DEFINITIONS SWIG_TYPE_TABLE=${PYRL}_${PROJECT_VERSION_MAJOR}_${PROJECT_VERSION_MINOR}_${PROJECT_VERSION_PATCH} PYDNA_SWIG_TYPE_TABLE=${pydna_type_table})
+ set_target_properties(${PYRL} PROPERTIES
+     SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
+     SWIG_COMPILE_DEFINITIONS "${SWIG_COMPILE_DEFINITIONS}"
+@@ -44,7 +44,7 @@ target_link_libraries(${PYRL}
+     PUBLIC
+         ${PYRL_DEPENDENCIES}
+     PRIVATE
+-        Python3::Python)
++        Python3::Module)
+ 
+ set(component_name riglogic4)  # Make sure py3riglogic and riglogic4 targets are under the same riglogic4 component name
+ get_property(wrapper_files TARGET ${PYRL} PROPERTY SWIG_SUPPORT_FILES)
