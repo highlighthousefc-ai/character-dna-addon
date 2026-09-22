@@ -129,7 +129,7 @@ def check_macos_links(target: Path) -> None:
         print(output)
         # The first line is the library's own path; only the linked libraries matter.
         links = [line.split(" (")[0].strip() for line in output.splitlines()[1:] if line.strip()]
-        if any(link.startswith("@rpath") or link.startswith("/Users/") for link in links):
+        if any(link.startswith(("@rpath", "/Users/")) for link in links):
             raise RuntimeError(f"{library.name} still links through an rpath or absolute build path")
 
 
