@@ -15,3 +15,14 @@ def dna_module() -> ModuleType:
         import dna  # pyright: ignore[reportMissingImports]
 
     return dna
+
+
+def riglogic_module() -> ModuleType:
+    """Return Epic's ``riglogic`` bindings module (resolved like :func:`dna_module`)."""
+    dna_module()  # riglogic's wrapper needs dna loaded first
+    try:
+        from ..bindings import riglogic  # pyright: ignore[reportAttributeAccessIssue]
+    except ImportError:
+        import riglogic  # pyright: ignore[reportMissingImports]
+
+    return riglogic

@@ -39,30 +39,14 @@ else:
 combo_folder = BINDINGS_FOLDER / os_name / arch / python_version
 
 def load_native_runtime() -> types.ModuleType:
-    """Load the required native runtime beside the SDK without a top-level module."""
-    import importlib.machinery
-    import importlib.util
+    """Return the RigLogic frame evaluator that ``runtime/engine.py`` drives.
 
-    module_name = f"{__name__}._riglogic_blender"
-    existing = sys.modules.get(module_name)
-    if existing is not None:
-        if getattr(existing, _ROOTDIR_ATTR, None) != str(combo_folder.resolve()):
-            raise ImportError("Native runtime already loaded from a different bindings folder; restart Blender")
-        return existing
-    for suffix in importlib.machinery.EXTENSION_SUFFIXES:
-        path = combo_folder / f"_riglogic_blender{suffix}"
-        if not path.is_file():
-            continue
-        _add_dll_directory_once(str(combo_folder))
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load native runtime: {path}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        setattr(module, _ROOTDIR_ATTR, str(combo_folder.resolve()))
-        sys.modules[module_name] = module
-        return module
-    raise ModuleNotFoundError(f"Native runtime is not installed in {combo_folder}")
+    This fork evaluates in Python (``runtime/python_evaluator.py``: numpy plus the OpenRigLogic
+    bindings above). Poly Hammer's closed-source ``_riglogic_blender`` extension is not used.
+    """
+    from ..runtime import python_evaluator
+
+    return python_evaluator
 
 
 # Bare ``sys.modules`` names the SWIG wrappers create transiently while loading.
