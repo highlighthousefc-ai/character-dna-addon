@@ -793,14 +793,15 @@ def import_head_texture_logic_node() -> bpy.types.NodeTree | None:
 
 
 def dependencies_are_valid() -> bool:
-    """Require both the DNA authoring bindings and the native evaluator."""
+    """Require the OpenRigLogic bindings and a usable frame evaluator (``runtime/python_evaluator``)."""
     try:
-        from ..bindings import dna, load_native_runtime, riglogic
-
-        load_native_runtime()
+        from ..bindings import dna, riglogic
+        from ..runtime.engine import capability
     except Exception:
         return False
-    return not (getattr(dna, "__is_fake__", False) or getattr(riglogic, "__is_fake__", False))
+    if getattr(dna, "__is_fake__", False) or getattr(riglogic, "__is_fake__", False):
+        return False
+    return capability()[0]
 
 
 def reduce_close_floats(float_list: list[float], tolerance: float = DEFAULT_UV_TOLERANCE) -> list[float]:
