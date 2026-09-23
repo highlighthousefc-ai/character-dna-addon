@@ -21,10 +21,10 @@ from ..constants import (
     SCALE_FACTOR,
     SHAPE_KEY_BASIS_NAME,
     SHAPE_KEY_DELTA_THRESHOLD,
-    SHAPE_KEY_NAME_MAX_LENGTH,
     VERTEX_COLOR_ATTRIBUTE_NAME,
     ComponentType,
 )
+from ..dna_core import shape_key_name
 from ..exceptions import InvalidComponentTypeError
 from ..typing import *  # noqa: F403  # noqa: F403
 from .misc import get_dna_reader, get_dna_writer
@@ -762,6 +762,13 @@ class DNAExporter:
             and mesh_object.data.shape_keys.key_blocks.get(SHAPE_KEY_BASIS_NAME)
         )
 
+    @staticmethod
+    def _shape_key_coordinates(shape_key_block: bpy.types.ShapeKey) -> np.ndarray:
+        """All of a shape key's vertex coordinates as an ``(N, 3)`` float64 array."""
+        coordinates = np.empty(len(shape_key_block.data) * 3, dtype=np.float32)
+        shape_key_block.data.foreach_get("co", coordinates)
+        return coordinates.reshape(-1, 3).astype(np.float64)
+
     def _write_mesh_shape_keys_from_scene(
         self,
         export_mesh_index: int,
@@ -783,38 +790,31 @@ class DNAExporter:
         bmesh_object = self.get_bmesh(mesh_object)
         vertex_indices, _ = self.get_mesh_vertex_positions(bmesh_object=bmesh_object)
         bmesh_object.free()
+        vertex_indices = np.asarray(vertex_indices, dtype=np.int64)
 
         # DNA is Y-up, Blender is Z-up, so we need to rotate the deltas.
-        rotation_matrix = Matrix.Rotation(math.radians(-90), 4, "X")  # type: ignore[arg-type]
+        rotation = np.array(Matrix.Rotation(math.radians(-90), 3, "X"), dtype=np.float64)  # type: ignore[arg-type]
+        basis = self._shape_key_coordinates(shape_key_basis)  # type: ignore[arg-type]
 
         for target_index in range(self._dna_reader.getBlendShapeTargetCount(source_mesh_index)):
             channel_index = self._dna_reader.getBlendShapeChannelIndex(source_mesh_index, target_index)
             channel_name = self._dna_reader.getBlendShapeChannelName(channel_index)
-            block_name = f"{real_name}__{channel_name}"
+            block_name = shape_key_name(real_name, channel_name)
 
             dna_delta_vertex_indices: list[int] = []
             dna_delta_values: list[list[float]] = []
 
-            # Blender caps shape key names at 63 characters, so channels whose block
-            # name would exceed that limit are never imported into the scene; write
-            # an empty target for them (they keep their channel wiring but no deltas).
-            shape_key_block = None
-            if len(block_name) <= SHAPE_KEY_NAME_MAX_LENGTH:
-                shape_key_block = mesh_object.data.shape_keys.key_blocks.get(block_name)  # type: ignore[union-attr]
+            # A channel without a scene shape key (deleted by the user, or never imported) is
+            # written as an empty target: it keeps its channel wiring but no deltas.
+            shape_key_block = mesh_object.data.shape_keys.key_blocks.get(block_name)  # type: ignore[union-attr]
 
             if shape_key_block:
-                for vertex_index in vertex_indices:
-                    new_delta = rotation_matrix @ (
-                        shape_key_block.data[vertex_index].co.copy() - shape_key_basis.data[vertex_index].co  # type: ignore[union-attr]
-                    )
-                    # Only store vertices that actually moved to avoid floating point drift.
-                    if new_delta.length > SHAPE_KEY_DELTA_THRESHOLD:
-                        converted_delta = new_delta / self._linear_modifier
-                        dna_delta_vertex_indices.append(vertex_index)
-                        # The writer's typemap requires a list of [x, y, z] lists of plain floats.
-                        dna_delta_values.append(
-                            [float(converted_delta.x), float(converted_delta.y), float(converted_delta.z)]
-                        )
+                deltas = (self._shape_key_coordinates(shape_key_block) - basis)[vertex_indices] @ rotation.T
+                # Only store vertices that actually moved to avoid floating point drift.
+                moved = np.linalg.norm(deltas, axis=1) > SHAPE_KEY_DELTA_THRESHOLD
+                dna_delta_vertex_indices = vertex_indices[moved].tolist()
+                # The writer's typemap requires a list of [x, y, z] lists of plain floats.
+                dna_delta_values = (deltas[moved] / self._linear_modifier).tolist()
             else:
                 logger.debug(
                     f"Shape key block '{block_name}' not found for mesh '{real_name}'. "

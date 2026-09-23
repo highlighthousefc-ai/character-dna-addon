@@ -8,7 +8,7 @@ import bpy
 # This import is necessary to register custom icons
 import bpy.utils.previews  # pyright: ignore[reportMissingModuleSource, reportUnusedImport]
 
-from . import constants, manual_map, operators, properties, rig_instance, utilities
+from . import constants, manual_map, missing_addon_notice, operators, properties, rig_instance, utilities
 from .runtime import controller as native_runtime
 from .ui import addon_preferences, importer, menus, view_3d
 
@@ -48,6 +48,7 @@ classes = [
     operators.BakeComponentAnimation,
     operators.MigrateLegacyData,
     operators.ForceEvaluate,
+    operators.ImportShapeKeys,
     operators.RefreshOutputItems,
     operators.MapRawToGuiControls,
     operators.SendToMetaHumanCreator,
@@ -123,6 +124,7 @@ def register():
         logger.error(error)
 
     native_runtime.register()
+    missing_addon_notice.register()
 
     # add event handlers
     for handler_name, handler_function in app_handlers.items():
@@ -136,6 +138,7 @@ def unregister():
     utilities.disable_duplicate_addons()
 
     native_runtime.unregister()
+    missing_addon_notice.unregister()
 
     utilities.teardown_scene()
 

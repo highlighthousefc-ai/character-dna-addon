@@ -1,7 +1,7 @@
 from .calibrator import DNACalibrator
 from .exporter import DNAExporter
 from .importer import DNAImporter
-from .misc import create_shape_key, get_dna_reader, get_dna_writer, release_dna_handle
+from .misc import create_shape_key, get_dna_reader, get_dna_writer, import_blend_shapes, release_dna_handle
 
 
 __all__ = [
@@ -11,5 +11,6 @@ __all__ = [
     "create_shape_key",
     "get_dna_reader",
     "get_dna_writer",
+    "import_blend_shapes",
     "release_dna_handle",
 ]

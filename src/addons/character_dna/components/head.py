@@ -17,6 +17,7 @@ from ..constants import (
     FACE_BOARD_SWITCHES,
     REGION_VERTEX_GROUP_PREFIX,
 )
+from ..dna_io import import_blend_shapes
 from ..fbx.reader import FbxAnimationClip
 from ..rig_definition import HeadRigDefinition
 from ..utilities import exclude_rig_instance_evaluation
@@ -67,7 +68,7 @@ class CharacterComponentHead(CharacterComponentBase):
                 clip=clip,
             )
 
-    def ingest(self, align: bool = True, constrain: bool = True) -> tuple[bool, str]:
+    def ingest(self, align: bool = True, constrain: bool = True) -> tuple[bool, str]:  # noqa: PLR0912
         valid, message = self.dna_importer.run()
         self.rig_instance.head_rig = self.dna_importer.rig_object
 
@@ -94,6 +95,9 @@ class CharacterComponentHead(CharacterComponentBase):
         # author rig-definition metadata: joint-group bone collections (with
         # per-bone colors) and region vertex groups on the head meshes
         self._build_rig_definition_metadata()
+
+        if getattr(self.dna_import_properties, "import_shape_keys", False):
+            self.import_shape_keys()
 
         if self.head_rig_object and self.head_mesh_object and self.head_rig_object.pose:
             if self.body_rig_object and self.body_rig_object.pose:
@@ -168,6 +172,38 @@ class CharacterComponentHead(CharacterComponentBase):
                 )
 
         return valid, message
+
+    def import_shape_keys(self) -> int:
+        """Create the DNA's blend shapes as shape keys on every imported mesh that has them.
+
+        Only LOD0 meshes carry blend shape targets in MetaHuman DNAs; meshes that were not
+        imported (a LOD that was skipped, a deleted object) are skipped. The runtime caches of
+        key blocks are dropped so the next evaluation resolves the new blocks.
+
+        Returns the number of shape keys created.
+        """
+        if not self.dna_reader:
+            return 0
+
+        created = 0
+        for mesh_index in range(self.dna_reader.getMeshCount()):
+            if self.dna_reader.getBlendShapeTargetCount(mesh_index) == 0:
+                continue
+            mesh_name = self.dna_reader.getMeshName(mesh_index)
+            mesh_object = bpy.data.objects.get(f"{self.name}_{mesh_name}")
+            if not mesh_object:
+                continue
+            created += import_blend_shapes(
+                mesh_object=mesh_object,
+                reader=self.dna_reader,
+                mesh_index=mesh_index,
+                mesh_name=mesh_name,
+                linear_modifier=self.linear_modifier,
+            )
+
+        self.rig_instance.destroy_references()
+        logger.info(f'Imported {created} shape keys for "{self.name}"')
+        return created
 
     def _build_rig_definition_metadata(self):
         """Author the joint-group bone collections and region vertex groups.

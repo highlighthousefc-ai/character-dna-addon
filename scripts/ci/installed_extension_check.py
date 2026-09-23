@@ -39,6 +39,74 @@ def load_synthetic() -> ModuleType:
     return module
 
 
+def check_blend_shape_import(synthetic: ModuleType, bindings: ModuleType, dna_core: ModuleType, folder: Path) -> None:
+    """Import a synthetic DNA's blend shapes onto a Blender mesh and check every key's deltas."""
+    dna_io = importlib.import_module(f"{MODULE}.dna_io")
+    reader = dna_core.load(synthetic.write_blend_shape_mesh(bindings.dna, folder / "shapes.dna"))
+    centimetres = 0.01
+
+    def to_blender(x: float, y: float, z: float) -> tuple[float, float, float]:
+        return (x * centimetres, -z * centimetres, y * centimetres)  # Y-up cm -> Z-up m (+90 deg about X)
+
+    mesh = bpy.data.meshes.new("ci_shapes")
+    mesh.from_pydata([to_blender(*vertex) for vertex in synthetic.BLEND_SHAPE_VERTICES], [], [(0, 1, 2)])
+    mesh_object = bpy.data.objects.new("ci_shapes", mesh)
+    for _ in range(2):  # a second import must replace the keys, not stack duplicates
+        created = dna_io.import_blend_shapes(mesh_object, reader, 0, synthetic.BLEND_SHAPE_MESH, centimetres)
+    blocks = mesh_object.data.shape_keys.key_blocks
+    names = [block.name for block in blocks]
+    channels = synthetic.BLEND_SHAPE_TARGETS
+    expected = ["Basis"] + [dna_core.shape_key_name(synthetic.BLEND_SHAPE_MESH, channel) for channel in channels]
+    print(f"Blend shapes imported: {created} -> {names}")
+    if created != len(channels) or names != expected:
+        fail(f"Expected shape keys {expected}")
+    for block, deltas in zip(list(blocks)[1:], channels.values(), strict=True):
+        for index, basis in enumerate(blocks[0].data):
+            want = to_blender(*deltas.get(index, (0.0, 0.0, 0.0)))
+            got = block.data[index].co - basis.co
+            if max(abs(g - w) for g, w in zip(got, want, strict=True)) > 1e-6:
+                fail(f"{block.name} vertex {index}: delta {tuple(got)} != {want}")
+        if block.value != 0.0 or not block.lock_shape:
+            fail(f"{block.name} should start at 0 and be locked")
+    bpy.data.objects.remove(mesh_object)
+    bpy.data.meshes.remove(mesh)
+
+
+class _StandInCharacter(dict):
+    """Just the attributes ``missing_addon_notice.ensure`` reads from a rig instance."""
+
+    def __init__(self, name: str, head_mesh: bpy.types.Object) -> None:
+        super().__init__()
+        self.name = name
+        self.head_mesh = head_mesh
+
+
+def check_missing_addon_notice() -> None:
+    """The notice a saved file shows without the add-on: built, placed above the head, hidden."""
+    notice_module = importlib.import_module(f"{MODULE}.missing_addon_notice")
+    mesh = bpy.data.meshes.new("ci_head")
+    mesh.from_pydata([(-0.1, -0.1, 1.5), (0.1, 0.1, 1.8), (0.1, -0.1, 1.5)], [], [(0, 1, 2)])
+    head = bpy.data.objects.new("ci_head", mesh)
+    notice = notice_module.ensure(_StandInCharacter("ci", head))
+    print(f"Missing add-on notice: {notice.name} at {tuple(round(v, 3) for v in notice.location)}")
+    if "ci" not in notice.data.body or not notice.data.materials or not notice.hide_render:
+        fail("The missing add-on notice is incomplete")
+    if notice.location.z <= 1.8 or abs(notice.location.x + 0.1) > 1e-6:
+        fail("The missing add-on notice is not above the head")
+    tree = notice.data.materials[0].node_tree
+    if sorted(node.type for node in tree.nodes) != ["EMISSION", "OUTPUT_MATERIAL"] or len(tree.links) != 1:
+        fail("The missing add-on notice material is not emission -> output")
+    if notice_module.ensure(_StandInCharacter("ci", head)) != notice:
+        fail("A second ensure() must reuse the notice")
+    notice_module.set_visible(True)
+    if notice.hide_viewport:
+        fail("set_visible(True) did not show the notice")
+    notice_module.set_visible(False)
+    bpy.data.objects.remove(notice)
+    bpy.data.objects.remove(head)
+    bpy.data.meshes.remove(mesh)
+
+
 def main() -> None:
     print(f"Blender {bpy.app.version_string}, Python {sys.version.split()[0]}")
     user_resources = os.environ.get("BLENDER_USER_RESOURCES", "")
@@ -101,6 +169,8 @@ def main() -> None:
             print(f"jawOpen={jaw_open} -> jaw rotation X = {rotation}")
             if abs(rotation - expected) > 1e-4:
                 fail(f"Expected {expected}, got {rotation}")
+        check_blend_shape_import(synthetic, bindings, dna_core, Path(folder))
+    check_missing_addon_notice()
     # Blender's own policy check (shown in the Extensions UI): flags extensions that add their
     # folders to sys.path or load bundled scripts as top-level modules. Private API, Blender 4.2+.
     addon_utils._is_first_reset()  # noqa: SLF001

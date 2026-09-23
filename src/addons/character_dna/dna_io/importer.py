@@ -21,7 +21,6 @@ from ..constants import (
     MESH_VERTEX_COLORS_FILE_NAME,
     MESH_VERTEX_COLORS_FILE_PATH,
     NUMBER_OF_HEAD_LODS,
-    SHAPE_KEY_BASIS_NAME,
     UV_MAP_NAME,
     VERTEX_COLOR_ATTRIBUTE_NAME,
     ComponentType,
@@ -176,48 +175,6 @@ class DNAImporter:
                 vertex_group_weights.append(weight)
 
         return vertex_groups
-
-    def get_dna_shape_keys(self, mesh_index: int) -> dict:
-        mapping = []
-        shape_keys = {}
-        for layout_index, vertex_index in enumerate(self._dna_reader.getVertexLayoutPositionIndices(mesh_index)):
-            if vertex_index in mapping:
-                mapping[vertex_index].append(layout_index)
-            else:
-                mapping[vertex_index] = [layout_index]
-
-        for target_index in range(self._dna_reader.getBlendShapeTargetCount(mesh_index)):
-            delta_x_values = self._dna_reader.getBlendShapeTargetDeltaXs(mesh_index, target_index)
-            delta_y_values = self._dna_reader.getBlendShapeTargetDeltaYs(mesh_index, target_index)
-            delta_z_values = self._dna_reader.getBlendShapeTargetDeltaYs(mesh_index, target_index)
-            vertex_indices = self._dna_reader.getBlendShapeTargetVertexIndices(mesh_index, target_index)
-            channel_index = self._dna_reader.getBlendShapeChannelIndex(mesh_index, target_index)
-            shape_key_name = self._dna_reader.getBlendShapeChannelName(channel_index)
-            deltas = []
-            for vertex_index, delta_x, delta_y, delta_z in zip(
-                vertex_indices, delta_x_values, delta_y_values, delta_z_values, strict=False
-            ):
-                for layout_index in mapping[vertex_index]:
-                    deltas[layout_index] = (delta_x, delta_y, delta_z)
-
-            shape_keys[shape_key_name] = deltas
-
-        return shape_keys
-
-    @staticmethod
-    def set_shape_key(mesh_object: bpy.types.Object) -> bpy.types.Key:
-        # clear all shape keys
-        mesh_object.shape_key_clear()
-
-        # create the basis shape key
-        shape_key_block = mesh_object.shape_key_add(name=SHAPE_KEY_BASIS_NAME, from_mix=False)
-        shape_key = shape_key_block.id_data
-
-        # set the shape key name to the mesh object name
-        if shape_key:
-            shape_key.name = mesh_object.name
-
-        return shape_key  # pyright: ignore[reportReturnType]
 
     def set_custom_bone_shape(self, pose_bone: bpy.types.PoseBone):
         if pose_bone.rotation_mode != "XYZ":

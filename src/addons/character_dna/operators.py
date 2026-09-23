@@ -992,6 +992,43 @@ class ForceEvaluate(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class ImportShapeKeys(bpy.types.Operator):
+    """Import the head DNA's blend shapes as shape keys on the active character's head meshes. Existing shape keys on those meshes are replaced"""  # noqa: E501
+
+    bl_idname = f"{ToolInfo.NAME}.import_shape_keys"
+    bl_label = "Import Shape Keys"
+    bl_options = {"REGISTER", "UNDO"}
+
+    from .runtime.controller import native_scene_operation
+
+    def execute(self, context: "Context") -> set[str]:
+        instance = callbacks.get_active_rig_instance()
+        if instance is None or not instance.head_mesh:
+            self.report({"ERROR"}, "Select a character with an imported head.")
+            return {"CANCELLED"}
+        if instance.get("reference_mode") in {"LINK", "EDITABLE_LINK"}:
+            self.report({"ERROR"}, "Import shape keys in the linked character's source file.")
+            return {"CANCELLED"}
+        if not Path(bpy.path.abspath(instance.head_dna_file_path)).is_file():
+            self.report({"ERROR"}, f"Head DNA file not found: {instance.head_dna_file_path}")
+            return {"CANCELLED"}
+        return self._import(context)
+
+    @native_scene_operation
+    def _import(self, context: "Context") -> set[str]:
+        head = utilities.get_active_head()
+        if not head:
+            self.report({"ERROR"}, "Could not read the active character's head DNA.")
+            return {"CANCELLED"}
+        count = head.import_shape_keys()
+        self.report({"INFO"}, f"Imported {count} shape keys")
+        return {"FINISHED"}
+
+    @classmethod
+    def poll(cls, _: "Context") -> bool:
+        return utilities.dependencies_are_valid()
+
+
 class RefreshOutputItems(bpy.types.Operator):
     """Refresh the Output items list so it reflects the current scene meshes,
     textures, and rig for the active rig instance"""

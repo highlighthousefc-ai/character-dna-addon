@@ -488,6 +488,18 @@ class CHARACTER_DNA_PT_rig_instance_head_sub_panel(bpy.types.Panel):
             row.prop(instance, "head_rig", icon="OUTLINER_OB_ARMATURE")
             row = box.row()
             row.prop(instance, "head_material", icon="MATERIAL")
+            head_mesh = instance.head_mesh
+            shape_keys = head_mesh.data.shape_keys if head_mesh and head_mesh.type == "MESH" else None
+            row = box.row()
+            row.label(
+                text=f"{len(shape_keys.key_blocks) - 1} shape keys" if shape_keys else "No shape keys imported",
+                icon="SHAPEKEY_DATA",
+            )
+            row.operator(
+                f"{ToolInfo.NAME}.import_shape_keys",
+                text="Reimport" if shape_keys else "Import",
+                icon="IMPORT",
+            )
 
 
 class CHARACTER_DNA_PT_rig_instance_body_sub_panel(bpy.types.Panel):

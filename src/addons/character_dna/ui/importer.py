@@ -49,6 +49,8 @@ class CHARACTER_DNA_FILE_DATA_PT_panel(bpy.types.Panel):
         row.prop(operator, "import_bone_collections")
         if stem != "body":
             row = layout.row()
+            row.prop(operator, "import_shape_keys")
+            row = layout.row()
             row.prop(operator, "import_vertex_colors")
         row = layout.row()
         row.prop(operator, "import_materials")

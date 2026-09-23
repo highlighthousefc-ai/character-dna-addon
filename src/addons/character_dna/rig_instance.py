@@ -12,8 +12,7 @@ import numpy as np
 from mathutils import Euler, Matrix, Vector
 
 # local imports
-from . import utilities
-from .constants import SHAPE_KEY_NAME_MAX_LENGTH
+from . import dna_core, utilities
 from .ui import callbacks
 from .typing import *  # noqa: F403
 
@@ -445,7 +444,7 @@ class RigInstance(bpy.types.PropertyGroup):
             for index in range(self.head_dna_reader.getBlendShapeTargetCount(mesh_index)):
                 channel_index = self.head_dna_reader.getBlendShapeChannelIndex(mesh_index, index)
                 shape_key_name = self.head_dna_reader.getBlendShapeChannelName(channel_index)
-                channel_name_to_index_lookup[f"{mesh_name}__{shape_key_name}"] = channel_index
+                channel_name_to_index_lookup[dna_core.shape_key_name(mesh_name, shape_key_name)] = channel_index
 
         self.data[self.cache_key("head", "channel_name_to_index_lookup")] = channel_name_to_index_lookup
         return self.data[self.cache_key("head", "channel_name_to_index_lookup")]
@@ -522,7 +521,7 @@ class RigInstance(bpy.types.PropertyGroup):
                     channel_index = self.head_dna_reader.getBlendShapeChannelIndex(mesh_index, target_index)
                     name = self.head_dna_reader.getBlendShapeChannelName(channel_index)
                     dna_mesh_name = utilities.remove_instance_prefix(mesh_object.name, self.name)
-                    shape_key_block_name = f"{dna_mesh_name}__{name}"
+                    shape_key_block_name = dna_core.shape_key_name(dna_mesh_name, name)
                     shape_key_block = self.get_shape_key_block(mesh_index=mesh_index, name=shape_key_block_name)
                     if shape_key_block:
                         # remember the block name for the UI list (built in a write-safe context)
@@ -533,7 +532,7 @@ class RigInstance(bpy.types.PropertyGroup):
                         key_block_list.append(shape_key_block)
                         shape_key_blocks[channel_index] = key_block_list
 
-                    elif len(shape_key_block_name) <= SHAPE_KEY_NAME_MAX_LENGTH:
+                    else:
                         failed_to_cache_count += 1
 
             if failed_to_cache_count > 0:
@@ -592,7 +591,7 @@ class RigInstance(bpy.types.PropertyGroup):
                 for target_index in range(self.head_dna_reader.getBlendShapeTargetCount(mesh_index)):
                     channel_index = self.head_dna_reader.getBlendShapeChannelIndex(mesh_index, target_index)
                     name = self.head_dna_reader.getBlendShapeChannelName(channel_index)
-                    position = name_to_position.get(f"{dna_mesh_name}__{name}")
+                    position = name_to_position.get(dna_core.shape_key_name(dna_mesh_name, name))
                     if position is None:
                         continue
                     positions.append(position)
