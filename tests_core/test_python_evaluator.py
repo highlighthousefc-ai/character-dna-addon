@@ -124,3 +124,60 @@ def test_evaluation_is_repeatable(evaluator: ModuleType, jaw_session: tuple):
     _, second, _ = _evaluate(evaluator, jaw_session, 0.7)
     assert list(reset[3:6]) == pytest.approx([0.0, 0.0, 0.0], abs=1e-6)
     assert list(first) == list(second)
+
+
+def _jaw_session_with_center(evaluator: ModuleType, dna: ModuleType, tmp_path: Path) -> tuple:
+    """Like ``jaw_session`` but GUI control 0 reads face bone 1 with face bone 0 as its "centre".
+
+    This is how the face board wires CTRL_L_eye / CTRL_R_eye to CTRL_C_eye: a non-zero centre
+    control overrides the side control.
+    """
+    path = synthetic.write_jaw_rig(dna, tmp_path / "jaw.dna", gui_control=True)
+    model = evaluator.load_model(str(path), False)
+    session = evaluator.create_session(model)
+    plan = array("f", [JAW_JOINT_INDEX, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, *IDENTITY])
+    frame_plan = evaluator.create_frame_plan(
+        session,
+        plan,
+        array("f", IDENTITY * RIG_BONES),
+        array("i", [-1, 0]),
+        array("i", [0, 1, Y_AXIS, 0]),  # GUI 0 <- face bone 1 .y, centre = face bone 0
+        array("i"),
+        array("i"),
+        array("i"),
+        2,
+        False,
+    )
+    return model, session, frame_plan
+
+
+@pytest.mark.parametrize(
+    ("centre_y", "side_y", "expected_gui"),
+    [
+        (0.0, 1.0, 1.0),  # centre at rest: the side control is used
+        (4e-6, 1.0, 1.0),  # centre with a tiny imported rest offset still counts as "at rest"
+        (-3.1e-5, 0.5, 0.5),
+        (0.5, 1.0, 0.5),  # centre moved: it overrides the side control
+    ],
+)
+def test_centre_control_only_overrides_when_actually_moved(
+    evaluator: ModuleType, dna: ModuleType, tmp_path: Path, centre_y: float, side_y: float, expected_gui: float
+):
+    model, session, frame_plan = _jaw_session_with_center(evaluator, dna, tmp_path)
+    face = array("f", [0.0, centre_y, 0.0, 0.0, side_y, 0.0])
+    sdk = array("d", [0.0]) * sum(model.info["output_counts"])
+    local = array("d", [0.0]) * 9
+    evaluator.evaluate_frame(
+        session,
+        frame_plan,
+        array("f", IDENTITY * RIG_BONES),
+        array("f", [0.0]) * (RIG_BONES * 16),
+        face,
+        array("f", [0.0]) * 38,
+        sdk,
+        local,
+        0,
+        True,
+        False,
+    )
+    assert evaluator.control_snapshot(session)["gui"][0] == pytest.approx(expected_gui, abs=1e-6)

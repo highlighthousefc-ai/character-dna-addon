@@ -40,7 +40,12 @@ SCALE_FACTOR = 100.0  # DNA centimetres -> Blender metres
 PLAN_STRIDE = 27  # joint, flag, rest location(3), rest rotation(3), rest scale(3), rest-to-parent inverse(16)
 HEAD_JOINT_STRIDE = 9
 BODY_JOINT_STRIDE = 10
-EPSILON = 1e-6
+EPSILON = 1e-6  # numerical safety only (e.g. dividing by a bone scale)
+# Threshold for "this control is non-zero", as in the original Python evaluation
+# (constants.FLOATING_POINT_PRECISION, not imported because constants.py imports bpy). The face
+# board is imported with tiny rest offsets on some controls (e.g. CTRL_C_eye ~ 4e-6), which must
+# not count as "moved" or the centre eye would permanently override the L/R eye controls.
+CONTROL_EPSILON = 1e-4
 EYE_YAW_RANGE = math.radians(60.0)
 EYE_PITCH_RANGE = math.radians(30.0)
 
@@ -371,12 +376,12 @@ def _eye_aim_controls(frame_plan: FramePlan, poses: np.ndarray, spatial: np.ndar
         target = np.append(spatial[32 + target_index * 3 : 35 + target_index * 3], 1.0)
         direction = (face_world @ target)[:3] - eye_position
         length = np.linalg.norm(direction)
-        if length < EPSILON:
+        if length < CONTROL_EPSILON:
             continue
         local = np.linalg.inv(reference[:3, :3]) @ (direction / length)
         local /= np.linalg.norm(local)
         horizontal = math.hypot(local[0], local[2])
-        yaw = math.asin(max(-1.0, min(1.0, local[0] / horizontal))) if horizontal > EPSILON else 0.0
+        yaw = math.asin(max(-1.0, min(1.0, local[0] / horizontal))) if horizontal > CONTROL_EPSILON else 0.0
         pitch = math.atan2(local[1], horizontal)
         if control_x >= 0:
             values[int(control_x)] = max(-1.0, min(1.0, yaw / EYE_YAW_RANGE))
@@ -415,9 +420,9 @@ def evaluate_frame(
             value = face_locations[face_bone, axis]
             aimed = aim.get(int(gui_index))
             if aimed is not None:
-                if abs(aimed) > EPSILON:
+                if abs(aimed) > CONTROL_EPSILON:
                     value = aimed
-            elif center >= 0 and abs(face_locations[center, axis]) > EPSILON:
+            elif center >= 0 and abs(face_locations[center, axis]) > CONTROL_EPSILON:
                 value = face_locations[center, axis]
             instance.setGUIControl(int(gui_index), float(value))
         rig_logic.mapGUIToRawControls(instance)
