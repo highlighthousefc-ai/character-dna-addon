@@ -115,3 +115,72 @@ def write_blend_shape_mesh(dna: ModuleType, path: Path) -> Path:
         raise RuntimeError(f"Could not write synthetic DNA: {dna.Status.get().message}")
     del writer, stream
     return path
+
+
+CORRECTIVE_RAW_CONTROLS = ("CTRL_expressions.jawOpen", "CTRL_expressions.mouthFunnelUL", "CTRL_expressions.browRaiseL")
+# (name, driving control): a raw control, a PSD of two raws, and a PSD with a weight-4 input.
+CORRECTIVE_CHANNELS = (("jaw_open", 0), ("jaw_open_funnel_UL", 3), ("jaw_open_brow_raise_L", 4))
+CORRECTIVE_PSDS = {3: ((0, 1.0), (1, 1.0)), 4: ((0, 4.0), (2, 1.0))}  # PSD control -> (input, weight)
+CORRECTIVE_MESH = "head_lod0_mesh"
+CORRECTIVE_VERTICES = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0))
+# One target per channel, in channel order: vertex index -> delta (DNA space, cm).
+CORRECTIVE_TARGETS = ({2: (0.0, -0.5, 0.25)}, {0: (0.1, 0.2, 0.3), 3: (0.0, 0.0, -1.0)}, {1: (0.5, 0.0, 0.0)})
+
+
+def write_corrective_rig(dna: ModuleType, path: Path) -> Path:
+    """Write a rig whose channels are driven by a raw control and two correctives (PSDs).
+
+    One root joint (RigLogic needs a skeleton), three raw controls, PSD 3 = jawOpen x funnelUL and
+    PSD 4 = clamp(4 * jawOpen x browRaiseL), and a four-vertex mesh with one target per channel.
+    """
+    stream = dna.FileStream(str(path), dna.FileStream.AccessMode_Write, dna.FileStream.OpenMode_Binary)
+    writer = dna.BinaryStreamWriter(stream)
+    writer.setName("synthetic_correctives")
+    writer.setLODCount(1)
+    writer.setDBMaxLOD(0)
+    writer.setJointName(0, "root")
+    writer.setJointHierarchy([0])
+    writer.setJointIndices(0, [0])
+    writer.setLODJointMapping(0, 0)
+    writer.setNeutralJointTranslations([[0.0, 0.0, 0.0]])
+    writer.setNeutralJointRotations([[0.0, 0.0, 0.0]])
+
+    for index, name in enumerate(CORRECTIVE_RAW_CONTROLS):
+        writer.setRawControlName(index, name)
+    raw_count = len(CORRECTIVE_RAW_CONTROLS)
+    rows, columns, values = [], [], []
+    for control, inputs in CORRECTIVE_PSDS.items():
+        for column, weight in inputs:
+            rows.append(control)
+            columns.append(column)
+            values.append(weight)
+    writer.setPSDCount(len(CORRECTIVE_PSDS))
+    writer.setPSDRowIndices(rows)
+    writer.setPSDColumnIndices(columns)
+    writer.setPSDValues(values)
+    assert min(CORRECTIVE_PSDS) == raw_count  # PSD controls follow the raw controls
+
+    for channel, (name, _control) in enumerate(CORRECTIVE_CHANNELS):
+        writer.setBlendShapeChannelName(channel, name)
+    writer.setBlendShapeChannelIndices(0, list(range(len(CORRECTIVE_CHANNELS))))
+    writer.setLODBlendShapeChannelMapping(0, 0)
+    writer.setBlendShapeChannelLODs([len(CORRECTIVE_CHANNELS)])
+    writer.setBlendShapeChannelInputIndices([control for _name, control in CORRECTIVE_CHANNELS])
+    writer.setBlendShapeChannelOutputIndices(list(range(len(CORRECTIVE_CHANNELS))))
+
+    writer.setMeshName(0, CORRECTIVE_MESH)
+    writer.setMeshIndices(0, [0])
+    writer.setLODMeshMapping(0, 0)
+    writer.setVertexPositions(0, [list(vertex) for vertex in CORRECTIVE_VERTICES])
+    writer.setVertexLayouts(0, [[index, 0, 0] for index in range(len(CORRECTIVE_VERTICES))])
+    writer.setFaceVertexLayoutIndices(0, 0, [0, 1, 3, 2])
+    for target, deltas in enumerate(CORRECTIVE_TARGETS):
+        writer.setBlendShapeChannelIndex(0, target, target)
+        writer.setBlendShapeTargetVertexIndices(0, target, list(deltas))
+        writer.setBlendShapeTargetDeltas(0, target, [list(delta) for delta in deltas.values()])
+
+    writer.write()
+    if not dna.Status.isOk():
+        raise RuntimeError(f"Could not write synthetic DNA: {dna.Status.get().message}")
+    del writer, stream
+    return path

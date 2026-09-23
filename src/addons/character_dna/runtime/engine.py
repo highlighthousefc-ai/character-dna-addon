@@ -782,6 +782,61 @@ def preview_shape(instance: Any, channel: int, value: float) -> bool:
     return True
 
 
+def preview_raw(
+    instance: Any, raw_values: dict[int, float], shape_overrides: dict[int, float] | None = None
+) -> list[float] | None:
+    """Publish the head pose for ``raw_values`` with every other expression at 0.
+
+    The neck's quaternion raw controls keep their current values, so the head stays where it is.
+    ``shape_overrides`` replaces individual blend shape channel weights in what is published (the
+    Shape Key Editor hides dependencies this way). Returns the calculated channel weights, before
+    overrides, or ``None`` when the head isn't bound or hasn't been evaluated yet. The preview holds
+    until the face board, frame or LOD changes, or :func:`clear_preview` is called.
+    """
+    from ..dna_core._bindings import riglogic_module
+
+    record = _head_record(instance)
+    if record is None:
+        return None
+    context = _graph_context(record, bpy.context.evaluated_depsgraph_get())
+    if "session" not in context or "lod" not in context:
+        return None
+    rig_logic = record["model"].rig_logic
+    state = riglogic_module().RigInstance(rigLogic=rig_logic, memRes=None)
+    state.setLOD(context["lod"])
+    source = _module.control_snapshot(context["session"])
+    quaternions = {int(item[0]) for item in record["raw"]}
+    for index, value in enumerate(source["raw"]):
+        state.setRawControl(index, float(raw_values.get(index, value if index in quaternions else 0.0)))
+    rig_logic.calculate(state)
+    weights = list(state.getBlendShapeOutputs())
+    shapes = array("d", weights)
+    for channel, value in (shape_overrides or {}).items():
+        shapes[channel] = value
+    outputs = array("d", [0.0]) * (record["joint_count"] * 9)
+    _module.transform_into(record["plan"], array("d", state.getJointOutputs()), outputs, False)
+    outputs.extend(shapes)
+    outputs.extend(state.getAnimatedMapOutputs())
+    controls = {
+        "raw": array("f", (state.getRawControl(index) for index in range(len(source["raw"])))),
+        "gui": array("f", source["gui"]),
+    }
+    _store_preview(record, outputs, controls)
+    return weights
+
+
+def clear_preview(instance: Any) -> None:
+    """Drop a published preview so the head follows its face board again."""
+    record = _head_record(instance)
+    if record is None:
+        return
+    carrier = record["carrier"]
+    if "preview" in carrier:
+        del carrier["preview"]
+    carrier["preview_revision"] = carrier.get("preview_revision", 0) + 1
+    carrier.update_tag()
+
+
 def _apply_preview(record: dict[str, Any], context: dict[str, Any], owner: Any, graph: Any, instance: Any) -> None:
     context.pop("preview_controls", None)
     revision = owner.get("preview_revision", 0)
