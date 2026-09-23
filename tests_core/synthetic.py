@@ -72,3 +72,46 @@ def jaw_rotation_x(riglogic: ModuleType, reader: object, jaw_open: float) -> flo
     rig_logic.calculate(instance)
     outputs = list(instance.getJointOutputs())
     return outputs[1 * JOINT_ATTRIBUTE_COUNT + ROTATION_X]
+
+
+BLEND_SHAPE_MESH = "head_lod0_mesh"
+# Vertex positions in DNA space (Y-up, centimetres).
+BLEND_SHAPE_VERTICES = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+# Channel name -> {vertex index: delta}. The second name makes ``{mesh}__{channel}`` 70 characters
+# long, over Blender's 63-character limit, like MetaHuman's funnelWide correctives.
+BLEND_SHAPE_TARGETS = {
+    "jaw_open": {2: (0.0, -0.5, 0.25)},
+    "Mfunnel_MupperLipRaise_MlowerLipDepress__funnelWide_UL": {0: (0.1, 0.2, 0.3), 1: (0.0, 0.0, -1.0)},
+}
+
+
+def write_blend_shape_mesh(dna: ModuleType, path: Path) -> Path:
+    """Write a one-triangle mesh with the blend shape targets in ``BLEND_SHAPE_TARGETS``."""
+    stream = dna.FileStream(str(path), dna.FileStream.AccessMode_Write, dna.FileStream.OpenMode_Binary)
+    writer = dna.BinaryStreamWriter(stream)
+    writer.setName("synthetic_blend_shapes")
+    writer.setLODCount(1)
+    writer.setDBMaxLOD(0)
+    writer.setMeshName(0, BLEND_SHAPE_MESH)
+    writer.setMeshIndices(0, [0])
+    writer.setLODMeshMapping(0, 0)
+    writer.setVertexPositions(0, [list(vertex) for vertex in BLEND_SHAPE_VERTICES])
+    writer.setVertexLayouts(0, [[index, 0, 0] for index in range(len(BLEND_SHAPE_VERTICES))])
+    writer.setFaceVertexLayoutIndices(0, 0, [0, 1, 2])
+
+    channels = list(BLEND_SHAPE_TARGETS)
+    for index, name in enumerate(channels):
+        writer.setBlendShapeChannelName(index, name)
+    writer.setBlendShapeChannelIndices(0, list(range(len(channels))))
+    writer.setLODBlendShapeChannelMapping(0, 0)
+    for target, name in enumerate(channels):
+        deltas = BLEND_SHAPE_TARGETS[name]
+        writer.setBlendShapeChannelIndex(0, target, target)
+        writer.setBlendShapeTargetVertexIndices(0, target, list(deltas))
+        writer.setBlendShapeTargetDeltas(0, target, [list(delta) for delta in deltas.values()])
+
+    writer.write()
+    if not dna.Status.isOk():
+        raise RuntimeError(f"Could not write synthetic DNA: {dna.Status.get().message}")
+    del writer, stream
+    return path

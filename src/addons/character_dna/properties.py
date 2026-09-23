@@ -335,9 +335,12 @@ class CharacterImportProperties(get_dna_import_property_group_base_class()):
         default=True, name="Bones", description="Whether to import the bones for the head"
     )  # pyright: ignore[reportInvalidTypeForm]
     import_shape_keys: bpy.props.BoolProperty(
-        default=False,
+        default=True,
         name="Shape Keys",
-        description="Whether to import the shapes key for the head. You can also import these later",
+        description=(
+            "Whether to import the head DNA's blend shapes as shape keys (about 10 seconds and 60 MB for a "
+            "MetaHuman). The rig drives them from the face board. You can also import them later"
+        ),
     )  # pyright: ignore[reportInvalidTypeForm]
     import_vertex_groups: bpy.props.BoolProperty(
         default=True,

@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 # third party imports
 import bpy
+import numpy as np
 
 from mathutils import Matrix, Vector
 
@@ -18,8 +19,8 @@ from ..constants import (
     NORMAL_DELTA_THRESHOLD,
     SHAPE_KEY_BASIS_NAME,
     SHAPE_KEY_DELTA_THRESHOLD,
-    SHAPE_KEY_NAME_MAX_LENGTH,
 )
+from ..dna_core import shape_key_name as dna_core_shape_key_name
 from ..typing import *  # noqa: F403  # noqa: F403
 from .exporter import DNAExporter
 from .importer import DNAImporter
@@ -434,19 +435,19 @@ class DNACalibrator(DNAExporter, DNAImporter):
                 bmesh_object = self.get_bmesh(mesh_object)
                 vertex_indices, _ = self.get_mesh_vertex_positions(bmesh_object)
                 bmesh_object.free()
+                vertex_indices = np.asarray(vertex_indices, dtype=np.int64)
 
                 # DNA is Y-up, Blender is Z-up, so we need to rotate the deltas
-                rotation_matrix = Matrix.Rotation(math.radians(-90), 4, "X")  # type: ignore[arg-type]
+                rotation = np.array(Matrix.Rotation(math.radians(-90), 3, "X"), dtype=np.float64)  # type: ignore[arg-type]
+                basis = self._shape_key_coordinates(shape_key_basis)
 
                 for index in range(self._dna_reader.getBlendShapeTargetCount(mesh_index)):
                     channel_index = self._dna_reader.getBlendShapeChannelIndex(mesh_index, index)
                     shape_key_name = self._dna_reader.getBlendShapeChannelName(channel_index)
 
-                    # Currently, Blender has a limit of 63 characters for shape key names
-                    if len(f"{mesh_name}__{shape_key_name}") > SHAPE_KEY_NAME_MAX_LENGTH:
-                        continue
-
-                    shape_key_block = mesh_object.data.shape_keys.key_blocks.get(f"{mesh_name}__{shape_key_name}")
+                    shape_key_block = mesh_object.data.shape_keys.key_blocks.get(
+                        dna_core_shape_key_name(mesh_name, shape_key_name)
+                    )
                     if not shape_key_block:
                         logger.error(
                             f"Shape key '{shape_key_name}' not found for mesh '{real_mesh_name}'. "
@@ -454,29 +455,14 @@ class DNACalibrator(DNAExporter, DNAImporter):
                         )
                         continue
 
-                    dna_delta_vertex_indices = []
-                    dna_delta_values = []
-
-                    # the new shape key is the dna shape key with the deltas from the blender shape key applied
-                    for vertex_index in vertex_indices:
-                        # get the positions of the points
-                        # Get the delta between the current shape key and the basis (rest) shape key
-                        new_delta = rotation_matrix @ (
-                            shape_key_block.data[vertex_index].co.copy() - shape_key_basis.data[vertex_index].co  # type: ignore[attr-defined]
-                        )
-
-                        # Only modify the vertex positions that are different to avoid floating value drift
-                        if new_delta.length > SHAPE_KEY_DELTA_THRESHOLD:
-                            # Apply the coordinate system conversion and linear modifier for the
-                            # scene units to the delta
-                            converted_delta = new_delta / self._linear_modifier
-                            dna_delta_vertex_indices.append(vertex_index)
-                            # The DNA writer's typemap requires a list of [x, y, z] lists of plain
-                            # Python floats (matching ``setVertexPositions``); tuples or mathutils
-                            # scalars are rejected with a SystemError/TypeError.
-                            dna_delta_values.append(
-                                [float(converted_delta.x), float(converted_delta.y), float(converted_delta.z)]
-                            )
+                    # The delta between the shape key and the basis (rest) shape key, in DNA space.
+                    deltas = (self._shape_key_coordinates(shape_key_block) - basis)[vertex_indices] @ rotation.T
+                    # Only store vertices that actually moved to avoid floating value drift
+                    moved = np.linalg.norm(deltas, axis=1) > SHAPE_KEY_DELTA_THRESHOLD
+                    dna_delta_vertex_indices = vertex_indices[moved].tolist()
+                    # Undo the scene unit scale. The DNA writer's typemap requires a list of
+                    # [x, y, z] lists of plain Python floats (matching ``setVertexPositions``).
+                    dna_delta_values = (deltas[moved] / self._linear_modifier).tolist()
 
                     largest_delta_count = max(largest_delta_count, len(dna_delta_vertex_indices))
 

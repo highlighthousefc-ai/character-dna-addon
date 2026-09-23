@@ -69,7 +69,6 @@ RAW_CONTROL_PREFIX = "CTRL_expressions."
 
 # this is the difference in scale between unreal and blender
 SCALE_FACTOR = 100.0
-SHAPE_KEY_NAME_MAX_LENGTH = 63
 SHAPE_KEY_DELTA_THRESHOLD = 1e-6
 BONE_DELTA_THRESHOLD = 1e-3
 NORMAL_DELTA_THRESHOLD = 0.1

@@ -13,6 +13,7 @@ from mathutils import Matrix
 
 # local imports
 from ..constants import SHAPE_KEY_BASIS_NAME, ComponentType
+from ..dna_core import shape_key_name
 from ..typing import *  # noqa: F403
 from ..utilities import (
     exclude_rig_instance_evaluation,
@@ -248,6 +249,60 @@ def create_shape_key(
     return shape_key_block
 
 
+def blend_shape_target_deltas(
+    reader: "dna.BinaryStreamReader",
+    mesh_index: int,
+    index: int,
+    linear_modifier: float = 1.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return one blend shape target's sparse ``(vertex_indices, deltas)`` in Blender space.
+
+    The DNA stores deltas Y-up; the imported mesh is rotated +90 degrees about X to Z-up, so
+    the deltas get the same rotation (and the same linear unit scale as the vertex positions).
+    ``vertex_indices`` are DNA position indices, which are the Blender vertex indices of an
+    imported mesh (``DNAImporter`` creates and sorts its vertices in DNA position order).
+    """
+    vertex_indices = np.asarray(reader.getBlendShapeTargetVertexIndices(mesh_index, index), dtype=np.int64)
+    deltas = np.empty((len(vertex_indices), 3), dtype=np.float32)
+    if len(vertex_indices):
+        deltas[:, 0] = reader.getBlendShapeTargetDeltaXs(mesh_index, index)
+        deltas[:, 1] = reader.getBlendShapeTargetDeltaYs(mesh_index, index)
+        deltas[:, 2] = reader.getBlendShapeTargetDeltaZs(mesh_index, index)
+
+    # DNA is Y-up, Blender is Z-up, so we need to rotate the deltas
+    rotation = np.array(Matrix.Rotation(math.radians(90), 4, "X").to_3x3(), dtype=np.float32)
+    return vertex_indices, (deltas * linear_modifier) @ rotation.T
+
+
+def _scatter_deltas(
+    shape_key_block: bpy.types.ShapeKey,
+    base_flat: np.ndarray,
+    vertex_indices: np.ndarray,
+    rotated: np.ndarray,
+    mesh_object: bpy.types.Object,
+    name: str,
+) -> None:
+    """Write ``base + deltas`` into ``shape_key_block`` with one ``foreach_set``."""
+    base = base_flat.reshape(-1, 3)
+    vertex_count = len(base)
+
+    # guard against vertex indices that no longer exist on the base mesh
+    valid = vertex_indices < vertex_count
+    if not valid.all():
+        logger.warning(
+            f'Some vertex indices are missing for shape key "{name}". '
+            f'Were they deleted on the base mesh "{mesh_object.name}"?'
+        )
+        vertex_indices = vertex_indices[valid]
+        rotated = rotated[valid]
+
+    # the new vertex layout is the original vertex layout with the deltas from the dna applied
+    new_flat = base_flat.copy()
+    new = new_flat.reshape(-1, 3)
+    new[vertex_indices] = base[vertex_indices] + rotated
+    shape_key_block.data.foreach_set("co", new_flat)
+
+
 def apply_blend_shape_deltas(
     mesh_object: bpy.types.Object,
     shape_key_block: bpy.types.ShapeKey,
@@ -264,40 +319,55 @@ def apply_blend_shape_deltas(
     from DNA's Y-up space into Blender's Z-up space, scatters them onto the
     affected vertices, and writes the whole shape key in a single bulk call.
     """
-    vertex_indices = reader.getBlendShapeTargetVertexIndices(mesh_index, index)
+    vertex_indices, rotated = blend_shape_target_deltas(reader, mesh_index, index, linear_modifier)
     if len(vertex_indices) == 0:
         return
 
     reference_key = mesh_object.data.shape_keys.reference_key  # type: ignore[attr-defined]
-    vertex_count = len(reference_key.data)
-
-    # read the basis coordinates once as a flat (x, y, z) array
-    base_flat = np.empty(vertex_count * 3, dtype=np.float32)
+    base_flat = np.empty(len(reference_key.data) * 3, dtype=np.float32)
     reference_key.data.foreach_get("co", base_flat)
-    new_flat = base_flat.copy()
-    base = base_flat.reshape(-1, 3)
-    new = new_flat.reshape(-1, 3)
+    _scatter_deltas(shape_key_block, base_flat, vertex_indices, rotated, mesh_object, name)
 
-    vertex_indices = np.asarray(vertex_indices, dtype=np.int64)
-    deltas = np.empty((len(vertex_indices), 3), dtype=np.float32)
-    deltas[:, 0] = reader.getBlendShapeTargetDeltaXs(mesh_index, index)
-    deltas[:, 1] = reader.getBlendShapeTargetDeltaYs(mesh_index, index)
-    deltas[:, 2] = reader.getBlendShapeTargetDeltaZs(mesh_index, index)
 
-    # DNA is Y-up, Blender is Z-up, so we need to rotate the deltas
-    rotation = np.array(Matrix.Rotation(math.radians(90), 4, "X").to_3x3(), dtype=np.float32)
-    rotated = (deltas * linear_modifier) @ rotation.T
+def import_blend_shapes(
+    mesh_object: bpy.types.Object,
+    reader: "dna.BinaryStreamReader",
+    mesh_index: int,
+    mesh_name: str,
+    linear_modifier: float = 1.0,
+) -> int:
+    """Create every blend shape target of one DNA mesh as a shape key on ``mesh_object``.
 
-    # guard against vertex indices that no longer exist on the base mesh
-    valid = vertex_indices < vertex_count
-    if not valid.all():
-        logger.warning(
-            f'Some vertex indices are missing for shape key "{name}". '
-            f'Were they deleted on the base mesh "{mesh_object.name}"?'
-        )
-        vertex_indices = vertex_indices[valid]
-        rotated = rotated[valid]
+    Existing shape keys are cleared first, so a re-import replaces them instead of stacking
+    duplicates. Each key is named by :func:`dna_core.shape_key_name` (the name the runtime,
+    exporter and calibrator look blocks up by), holds the basis plus the target's deltas, starts
+    at value 0 and is locked so a stray edit cannot change what the rig evaluates.
 
-    # the new vertex layout is the original vertex layout with the deltas from the dna applied
-    new[vertex_indices] = base[vertex_indices] + rotated
-    shape_key_block.data.foreach_set("co", new_flat)
+    Returns the number of shape keys created (the basis not included).
+    """
+    if not isinstance(getattr(mesh_object, "data", None), bpy.types.Mesh):
+        logger.error(f'"{getattr(mesh_object, "name", mesh_object)}" has no mesh data. Skipping its blend shapes.')
+        return 0
+
+    count = reader.getBlendShapeTargetCount(mesh_index)
+    if count == 0:
+        return 0
+
+    mesh_object.shape_key_clear()
+    basis = mesh_object.shape_key_add(name=SHAPE_KEY_BASIS_NAME, from_mix=False)
+    basis.id_data.name = mesh_object.name
+
+    base_flat = np.empty(len(mesh_object.data.vertices) * 3, dtype=np.float32)
+    basis.data.foreach_get("co", base_flat)
+
+    for index in range(count):
+        channel_index = reader.getBlendShapeChannelIndex(mesh_index, index)
+        name = shape_key_name(mesh_name, reader.getBlendShapeChannelName(channel_index))
+        block = mesh_object.shape_key_add(name=name, from_mix=False)
+        block.value = 0.0
+        vertex_indices, rotated = blend_shape_target_deltas(reader, mesh_index, index, linear_modifier)
+        if len(vertex_indices):
+            _scatter_deltas(block, base_flat, vertex_indices, rotated, mesh_object, name)
+        block.lock_shape = True
+
+    return count
