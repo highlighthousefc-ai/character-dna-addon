@@ -22,6 +22,13 @@ def _side(name: str) -> str:
     return "L" if _LEFT.search(name) else "R" if _RIGHT.search(name) else "C"
 
 
+def short(name: str, width: int = 30) -> str:
+    """Elide a long name, keeping its end: MetaHuman channels differ at the end (..._UL / ..._UR)."""
+    if len(name) <= width:
+        return name
+    return f"{name[:3]}\u2026{name[-(width - 4) :]}"
+
+
 def _listed_mesh(context: Any) -> tuple[Any, bpy.types.Object | None]:
     instance = utilities.get_active_rig_instance()
     mesh_object = bpy.data.objects.get(session.state(context).mesh) if instance else None
@@ -72,13 +79,16 @@ class CHARACTER_DNA_UL_shape_keys(bpy.types.UIList):
         visible = self.bitflag_filter_item
         flags = []
         pattern = self.filter_name.lower()
+        names = session.graph(instance).channel_names if instance is not None and infos else []
         for index, block in enumerate(blocks):
             info = infos.get(block.name)
             keep = index > 0 and info is not None
+            # Match the DNA channel name: Blender key names over 63 characters end in a hash.
+            name = names[info.channel] if keep else ""
             if keep and pattern:
-                keep = (pattern in block.name.lower()) != self.use_filter_invert
+                keep = (pattern in name.lower()) != self.use_filter_invert
             if keep and self.filter_side != "ALL":
-                keep = _side(block.name) == self.filter_side
+                keep = _side(name) == self.filter_side
             if keep and self.non_zero:
                 keep = values[index] > 1e-4
             if keep and self.has_deltas:
@@ -111,8 +121,9 @@ class CHARACTER_DNA_UL_shape_keys(bpy.types.UIList):
             dna_mesh_name = utilities.remove_instance_prefix(mesh_object.name, instance.name)
             info = session.key_infos(instance, dna_mesh_name).get(item.name)
         channel_name = session.graph(instance).channel_names[info.channel] if info else item.name
-        row = layout.row(align=True)
-        row.label(text=channel_name, icon="SHAPEKEY_DATA" if info and info.has_deltas else "BLANK1")
+        split = layout.split(factor=0.74, align=True)
+        split.label(text=short(channel_name, 17), icon="SHAPEKEY_DATA" if info and info.has_deltas else "BLANK1")
+        row = split.row(align=True)
         value = row.row()
         value.alignment = "RIGHT"
         value.label(text=f"{item.value:.2f}")
@@ -137,8 +148,9 @@ class CHARACTER_DNA_UL_shape_key_dependencies(bpy.types.UIList):
         _index: int = 0,
         _flt_flag: int = 0,
     ) -> None:
-        row = layout.row(align=True)
-        row.label(text=item.name, icon="LOCKED")
+        split = layout.split(factor=0.74, align=True)
+        split.label(text=short(item.name, 17), icon="LOCKED")
+        row = split.row(align=True)
         row.label(text=f"{item.weight:.2f}")
         row.prop(item, "visible", text="", icon="HIDE_OFF" if item.visible else "HIDE_ON", emboss=False)
 
@@ -192,7 +204,7 @@ class CHARACTER_DNA_PT_shape_key_editor(RigInstanceDependentPanel):
             box.label(text="The edited character is gone.", icon="ERROR")
             box.operator(f"{ToolInfo.NAME}.shape_key_abandon")
             return
-        box.label(text=f"Editing: {name}", icon="SCULPTMODE_HLT")
+        box.label(text=f"Editing: {short(name, 34)}", icon="SCULPTMODE_HLT")
         box.label(text=f"Mesh: {state.mesh_name}")
         box.label(text=f"Controls at 1: {state.controls}")
         row = box.row(align=True)

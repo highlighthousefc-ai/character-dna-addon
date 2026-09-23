@@ -296,7 +296,8 @@ def commit(context: Any) -> dict[str, Any]:
     controller.rebuild(instance)
     write_key_from_dna(instance, mesh_object, key_name, target)
     result = {"key": key_name, "changed_vertices": changed, "backup": str(backup), "target_vertices": len(indices)}
-    session.status = f"Committed {key_name}: {changed} vertices changed. Backup: {backup.name}"
+    channel_name = graph(instance).channel_names[session.channel]
+    session.status = f"Committed {channel_name}: {changed} vertices changed. Backup: {backup.name}"
     session.last_backup = str(backup)
     logger.info(session.status)
     return result
@@ -313,7 +314,7 @@ def revert(context: Any) -> None:
     key_name, target = session.key_name, session.target
     write_key_from_dna(instance, mesh_object, key_name, target)
     _end(context, instance, mesh_object)
-    session.status = f"Reverted {key_name}"
+    session.status = f"Reverted {graph(instance).channel_names[session.channel]}"
 
 
 def abandon(context: Any = None) -> None:
