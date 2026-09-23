@@ -8,7 +8,16 @@ import bpy
 # This import is necessary to register custom icons
 import bpy.utils.previews  # pyright: ignore[reportMissingModuleSource, reportUnusedImport]
 
-from . import constants, manual_map, missing_addon_notice, operators, properties, rig_instance, utilities
+from . import (
+    constants,
+    manual_map,
+    missing_addon_notice,
+    operators,
+    properties,
+    rig_instance,
+    shape_key_editor,
+    utilities,
+)
 from .runtime import controller as native_runtime
 from .ui import addon_preferences, importer, menus, view_3d
 
@@ -125,6 +134,7 @@ def register():
 
     native_runtime.register()
     missing_addon_notice.register()
+    shape_key_editor.register()
 
     # add event handlers
     for handler_name, handler_function in app_handlers.items():
@@ -139,6 +149,7 @@ def unregister():
 
     native_runtime.unregister()
     missing_addon_notice.unregister()
+    shape_key_editor.unregister()
 
     utilities.teardown_scene()
 
