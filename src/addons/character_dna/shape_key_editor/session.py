@@ -107,24 +107,46 @@ def key_infos(instance: Any, dna_mesh_name: str) -> dict[str, KeyInfo]:
     return _key_infos[key]
 
 
+@dataclass(frozen=True)
+class DnaInfo:
+    """The few DNA facts the editor needs, read from the file (not the character's cached reader,
+    which Blender's undo handlers release)."""
+
+    unit: float  # Blender metres per DNA unit
+    lod0_meshes: tuple[str, ...]
+
+
+_dna_infos: dict[tuple[str, float], DnaInfo] = {}
+
+
+def dna_info(instance: Any) -> DnaInfo:
+    path = _dna_path(instance)
+    key = _cache_key(path)
+    if key not in _dna_infos:
+        dna = dna_core._bindings.dna_module()  # noqa: SLF001
+        reader = dna_core.load(path, layer="Definition")
+        try:
+            unit = 1 / SCALE_FACTOR if reader.getTranslationUnit() == dna.TranslationUnit_cm else 1.0
+            meshes = tuple(reader.getMeshName(index) for index in reader.getMeshIndicesForLOD(0))
+        finally:
+            blend_shapes.release(reader)
+        _dna_infos.clear()
+        _dna_infos[key] = DnaInfo(unit, meshes)
+    return _dna_infos[key]
+
+
 def editable_meshes(instance: Any) -> list[tuple[str, bpy.types.Object]]:
     """``(dna mesh name, object)`` for every imported LOD0 head mesh that has shape keys."""
     meshes = []
-    for mesh_index, mesh_object in sorted(instance.head_mesh_index_lookup.items()):
-        if mesh_index not in set(instance.head_dna_reader.getMeshIndicesForLOD(0)):
-            continue
-        if mesh_object.type == "MESH" and mesh_object.data.shape_keys:
-            meshes.append((utilities.remove_instance_prefix(mesh_object.name, instance.name), mesh_object))
+    for dna_mesh_name in dna_info(instance).lod0_meshes:
+        mesh_object = bpy.data.objects.get(f"{instance.name}_{dna_mesh_name}")
+        if mesh_object and mesh_object.type == "MESH" and mesh_object.data.shape_keys:
+            meshes.append((dna_mesh_name, mesh_object))
     return meshes
 
 
 def _unit(instance: Any) -> float:
-    """Blender metres per DNA unit, as ``CharacterComponentBase.linear_modifier`` computes it."""
-    reader = instance.head_dna_reader
-    if reader is None:
-        raise SessionError("The character's head DNA is not loaded")
-    dna = dna_core._bindings.dna_module()  # noqa: SLF001
-    return 1 / SCALE_FACTOR if reader.getTranslationUnit() == dna.TranslationUnit_cm else 1.0
+    return dna_info(instance).unit
 
 
 def rig_instance(name: str) -> Any:

@@ -19,8 +19,12 @@ def _mesh_items(_self: Any, _context: Any) -> list[tuple[str, str, str]]:
 
     instance = utilities.get_active_rig_instance()
     items = []
-    if instance is not None and instance.head_dna_reader:
-        for dna_mesh_name, mesh_object in session.editable_meshes(instance):
+    if instance is not None and instance.head_dna_file_path:
+        try:
+            meshes = session.editable_meshes(instance)
+        except session.SessionError:
+            meshes = []
+        for dna_mesh_name, mesh_object in meshes:
             count = len(mesh_object.data.shape_keys.key_blocks) - 1
             items.append((mesh_object.name, dna_mesh_name, f"{count} shape keys on {mesh_object.name}"))
     # Blender keeps a reference to dynamic enum items; hold them on the function.

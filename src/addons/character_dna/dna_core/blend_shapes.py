@@ -144,6 +144,8 @@ def commit_target(
             write_with_target(reader, temporary, mesh, target, indices, deltas)
         finally:
             release(reader)
+        # mkstemp creates the file owner-only (0600); keep the original file's permissions.
+        shutil.copymode(path, temporary)
         Path(temporary).replace(path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)

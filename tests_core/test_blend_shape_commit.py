@@ -1,6 +1,8 @@
 """Replacing one blend shape target in a DNA file: no-op commits, single-target edits, backups."""
 
 import filecmp
+import stat
+import sys
 
 from pathlib import Path
 from types import ModuleType
@@ -117,3 +119,13 @@ def test_merge_keeps_the_stored_vertex_order():
     edited[0] = (0.5, 0.0, 0.0)  # add one
     indices, _ = bs.merge(original, edited)
     assert indices.tolist() == [4, 3, 0]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+def test_commit_keeps_the_file_permissions(dna_file: Path):
+    dna_file.chmod(0o644)
+    reader = load(dna_file)
+    original = bs.target_deltas(reader, 0, 1)
+    bs.release(reader)
+    bs.commit_target(dna_file, 0, 1, *original)
+    assert stat.S_IMODE(dna_file.stat().st_mode) == 0o644
