@@ -122,6 +122,51 @@ class CHARACTER_DNA_OT_shape_key_revert(bpy.types.Operator):
         return _report_errors(self, session.revert, context)
 
 
+class CHARACTER_DNA_OT_shape_key_mirror(bpy.types.Operator):
+    """Mirror your edit of this shape key onto its left/right counterpart (e.g. _L onto _R). Nothing is saved until Commit, which then writes both keys; Revert discards both"""  # noqa: E501
+
+    bl_idname = f"{ToolInfo.NAME}.shape_key_mirror"
+    bl_label = "Mirror to Opposite"
+    bl_options = {"REGISTER", "UNDO"}
+
+    whole_shape: bpy.props.BoolProperty(
+        name="Whole Shape",
+        description=(
+            "Replace the counterpart with the exact mirror image of this whole shape (makes the pair symmetric). "
+            "Off: add only what you changed, mirrored, keeping the counterpart's own asymmetric shape"
+        ),
+        default=False,
+    )  # pyright: ignore[reportInvalidTypeForm]
+
+    @classmethod
+    def poll(cls, context: Any) -> bool:
+        return session.state(context).active
+
+    def execute(self, context: Any) -> set[str]:
+        result = _report_errors(self, session.mirror_to_opposite, context, self.whole_shape)
+        if result == {"FINISHED"}:
+            self.report({"INFO"}, session.state(context).status)
+        return result
+
+
+class CHARACTER_DNA_OT_shape_key_flip(bpy.types.Operator):
+    """Flip the edited shape key in place: its left side becomes its right. Nothing is saved until Commit"""
+
+    bl_idname = f"{ToolInfo.NAME}.shape_key_flip"
+    bl_label = "Flip"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Any) -> bool:
+        return session.state(context).active
+
+    def execute(self, context: Any) -> set[str]:
+        result = _report_errors(self, session.flip, context)
+        if result == {"FINISHED"}:
+            self.report({"INFO"}, session.state(context).status)
+        return result
+
+
 class CHARACTER_DNA_OT_shape_key_abandon(bpy.types.Operator):
     """End an edit whose character or shape key was removed, without changing anything"""
 
@@ -143,5 +188,7 @@ classes = (
     CHARACTER_DNA_OT_shape_key_sculpt,
     CHARACTER_DNA_OT_shape_key_commit,
     CHARACTER_DNA_OT_shape_key_revert,
+    CHARACTER_DNA_OT_shape_key_mirror,
+    CHARACTER_DNA_OT_shape_key_flip,
     CHARACTER_DNA_OT_shape_key_abandon,
 )

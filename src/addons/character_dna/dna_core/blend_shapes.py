@@ -88,21 +88,27 @@ def merge(
     return keep_indices, values[keep_indices]
 
 
-def write_with_target(
-    reader: Any, path: str | Path, mesh: int, target: int, indices: np.ndarray, deltas: np.ndarray
-) -> None:
-    """Write all of ``reader`` to ``path`` with one target's deltas replaced."""
+def write_with_targets(reader: Any, path: str | Path, edits: list[tuple[int, int, np.ndarray, np.ndarray]]) -> None:
+    """Write all of ``reader`` to ``path`` with each ``(mesh, target, indices, deltas)`` replaced."""
     dna = dna_module()
     stream = dna.FileStream(str(path), dna.FileStream.AccessMode_Write, dna.FileStream.OpenMode_Binary)
     writer = dna.BinaryStreamWriter(stream)
     writer.setFrom(reader)
-    writer.setBlendShapeTargetVertexIndices(mesh, target, [int(index) for index in indices])
-    writer.setBlendShapeTargetDeltas(mesh, target, np.asarray(deltas, dtype=np.float64).tolist())
+    for mesh, target, indices, deltas in edits:
+        writer.setBlendShapeTargetVertexIndices(mesh, target, [int(index) for index in indices])
+        writer.setBlendShapeTargetDeltas(mesh, target, np.asarray(deltas, dtype=np.float64).tolist())
     writer.write()
     if not dna.Status.isOk():
         raise DnaWriteError(f'Could not write "{path}": {dna.Status.get().message}')
     # Release the writer before its stream so the file is flushed and closed.
     del writer, stream
+
+
+def write_with_target(
+    reader: Any, path: str | Path, mesh: int, target: int, indices: np.ndarray, deltas: np.ndarray
+) -> None:
+    """Write all of ``reader`` to ``path`` with one target's deltas replaced."""
+    write_with_targets(reader, path, [(mesh, target, indices, deltas)])
 
 
 def backup_path(path: Path, folder: Path | None = None) -> Path:
@@ -117,15 +123,13 @@ def backup_path(path: Path, folder: Path | None = None) -> Path:
     return candidate
 
 
-def commit_target(
+def commit_targets(
     path: str | Path,
-    mesh: int,
-    target: int,
-    indices: np.ndarray,
-    deltas: np.ndarray,
+    edits: list[tuple[int, int, np.ndarray, np.ndarray]],
     backup_folder: Path | None = None,
 ) -> Path:
-    """Replace one target in the DNA at ``path``, in place, after backing the file up.
+    """Replace each ``(mesh, target, indices, deltas)`` in the DNA at ``path``, in place, after
+    backing the file up. All edits land in one write, so they succeed or fail together.
 
     The new DNA is written next to the original first and then swapped in with ``Path.replace``,
     so a failure leaves the original untouched. The reader used for the write is released before
@@ -141,7 +145,7 @@ def commit_target(
     try:
         reader = load(path)
         try:
-            write_with_target(reader, temporary, mesh, target, indices, deltas)
+            write_with_targets(reader, temporary, edits)
         finally:
             release(reader)
         # mkstemp creates the file owner-only (0600); keep the original file's permissions.
@@ -151,6 +155,18 @@ def commit_target(
         Path(temporary).unlink(missing_ok=True)
         raise
     return backup
+
+
+def commit_target(
+    path: str | Path,
+    mesh: int,
+    target: int,
+    indices: np.ndarray,
+    deltas: np.ndarray,
+    backup_folder: Path | None = None,
+) -> Path:
+    """:func:`commit_targets` for a single target."""
+    return commit_targets(path, [(mesh, target, indices, deltas)], backup_folder)
 
 
 def release(reader: Any) -> None:

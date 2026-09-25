@@ -1,6 +1,7 @@
 """Sidebar panel and lists of the Shape Key Editor."""
 
 import re
+import textwrap
 
 from typing import Any
 
@@ -210,6 +211,28 @@ class CHARACTER_DNA_PT_shape_key_editor(RigInstanceDependentPanel):
         row = box.row(align=True)
         row.operator(f"{ToolInfo.NAME}.shape_key_sculpt", text="Sculpt", icon="SCULPTMODE_HLT").mode = "SCULPT"
         row.operator(f"{ToolInfo.NAME}.shape_key_sculpt", text="Edit Mode", icon="EDITMODE_HLT").mode = "EDIT"
+        # Mirror / Flip (v1.1): the opposite key, or why there is none.
+        row = box.row(align=True)
+        try:
+            target = session.opposite()
+        except session.SessionError as error:
+            mirror = row.row(align=True)
+            mirror.enabled = False
+            mirror.operator(f"{ToolInfo.NAME}.shape_key_mirror", text="No Opposite", icon="MOD_MIRROR")
+            row.operator(f"{ToolInfo.NAME}.shape_key_flip", icon="ARROW_LEFTRIGHT")
+            for index, line in enumerate(textwrap.wrap(str(error), 44)):
+                box.label(text=line, icon="INFO" if index == 0 else "BLANK1")
+        else:
+            opposite_name = session.graph(instance).channel_names[target.channel]
+            label = f"Mirror Edit to {short(opposite_name, 16)}"
+            row.operator(f"{ToolInfo.NAME}.shape_key_mirror", text=label, icon="MOD_MIRROR").whole_shape = False
+            row.operator(f"{ToolInfo.NAME}.shape_key_flip", icon="ARROW_LEFTRIGHT")
+            box.operator(
+                f"{ToolInfo.NAME}.shape_key_mirror", text="Copy Whole Mirrored Shape", icon="MOD_MIRROR"
+            ).whole_shape = True
+        if state.mirror_key_name:
+            mirrored = session.graph(instance).channel_names[state.mirror_channel]
+            box.label(text=f"Commit also saves: {short(mirrored, 34)}", icon="MOD_MIRROR")
         box.label(text=f"Dependencies ({len(state.dependencies)}, locked):")
         box.template_list(
             "CHARACTER_DNA_UL_shape_key_dependencies", "", state, "dependencies", state, "dependencies_index", rows=4

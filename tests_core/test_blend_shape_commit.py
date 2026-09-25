@@ -93,7 +93,7 @@ def test_failed_write_leaves_the_file_untouched(dna_file: Path, monkeypatch: pyt
     def fail(*_args: object, **_kwargs: object) -> None:
         raise bs.DnaWriteError("disk full")
 
-    monkeypatch.setattr(bs, "write_with_target", fail)
+    monkeypatch.setattr(bs, "write_with_targets", fail)
     with pytest.raises(bs.DnaWriteError):
         bs.commit_target(dna_file, 0, 1, np.array([0]), np.zeros((1, 3)))
     assert dna_file.read_bytes() == before
@@ -129,3 +129,22 @@ def test_commit_keeps_the_file_permissions(dna_file: Path):
     bs.release(reader)
     bs.commit_target(dna_file, 0, 1, *original)
     assert stat.S_IMODE(dna_file.stat().st_mode) == 0o644
+
+
+def test_two_targets_commit_together(dna_file: Path):
+    """Mirror writes the edited target and its opposite in one commit, with one backup."""
+    reader = load(dna_file)
+    before = _all_targets(reader)
+    first, second = bs.target_deltas(reader, 0, 0), bs.target_deltas(reader, 0, 2)
+    bs.release(reader)
+    edited_first = bs.dense(*first, 4)
+    edited_first[1] = (0.0, 0.0, 0.7)
+    edited_second = bs.dense(*second, 4)
+    edited_second[3] = (0.3, 0.0, 0.0)
+    backup = bs.commit_targets(
+        dna_file, [(0, 0, *bs.merge(first, edited_first)), (0, 2, *bs.merge(second, edited_second))]
+    )
+    after = _all_targets(load(dna_file))
+    assert after[1] == before[1]
+    assert after[0][0] == [2, 1] and after[2][0] == [1, 3]
+    assert len(list(backup.parent.iterdir())) == 1
