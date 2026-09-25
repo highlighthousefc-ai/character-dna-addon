@@ -61,6 +61,12 @@ class ShapeKeyEditorState(bpy.types.PropertyGroup):
     controls: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
     dependencies: bpy.props.CollectionProperty(type=ShapeKeyEditorDependency)  # pyright: ignore[reportInvalidTypeForm]
     dependencies_index: bpy.props.IntProperty(default=0)  # pyright: ignore[reportInvalidTypeForm]
+    # Set by Mirror: the counterpart key that Commit also writes and Revert also restores.
+    mirror_key_name: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
+    mirror_object_name: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
+    mirror_mesh_name: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
+    mirror_target: bpy.props.IntProperty(default=-1)  # pyright: ignore[reportInvalidTypeForm]
+    mirror_channel: bpy.props.IntProperty(default=-1)  # pyright: ignore[reportInvalidTypeForm]
     status: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
     last_backup: bpy.props.StringProperty()  # pyright: ignore[reportInvalidTypeForm]
 
