@@ -167,6 +167,9 @@ jobs:
       - name: Round-trip and evaluate through the addon's bindings
         run: python scripts/ci/bindings_in_addon.py
 
+      - name: Pose picker filters keep the selected pose (KI-1)
+        run: python scripts/ci/pose_picker_check.py
+
   package:
     name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)
     needs: [bindings]

@@ -174,16 +174,24 @@ def get_face_pose_previews_items(
 
     metadata = ensure_face_pose_metadata()
 
+    # The selected pose, read from the raw stored enum value: reading ``self.face_pose_previews``
+    # here would call this callback again. Filters only change which poses are listed, never the
+    # selection, so the selected pose stays in the list even when the filters hide it. Otherwise
+    # the stored value would match no item and Blender would show a blank pose.
+    selected_value = self.get("face_pose_previews")
+
     # Build a cache key from the current filters so we only rebuild the filtered
-    # enum when the filters actually change.
+    # enum when the filters (or the selection they must keep) actually change.
     enabled_tags = tuple(sorted(get_enabled_face_pose_tags(self)))
-    cache_key = (self.category, enabled_tags, self.tag_match_mode)
+    cache_key = (self.category, enabled_tags, self.tag_match_mode, selected_value)
     if getattr(preview_collection, "face_pose_previews_cache_key", None) == cache_key:
         return preview_collection.face_pose_previews
 
+    filtered = _filter_face_pose_metadata(metadata, self.category, enabled_tags, self.tag_match_mode)
+    if selected_value is not None and all(entry["value"] != selected_value for entry in filtered):
+        filtered += [entry for entry in metadata if entry["value"] == selected_value]
     enum_items.extend(
-        (entry["id"], entry["name"], entry["description"], entry["icon_id"], entry["value"])
-        for entry in _filter_face_pose_metadata(metadata, self.category, enabled_tags, self.tag_match_mode)
+        (entry["id"], entry["name"], entry["description"], entry["icon_id"], entry["value"]) for entry in filtered
     )
 
     # Guard against the empty-enum problem: when no pose matches the active filters,
@@ -398,34 +406,12 @@ def get_face_pose_search_items(
 
 
 def update_face_pose_filter(self: "CharacterFaceBoardProperties", context: "Context"):  # noqa: ARG001
-    """
-    Invalidates the cached filtered enum and, if the currently selected pose is no
-    longer part of the filtered set, auto-selects the first remaining pose.
-    """
+    """Rebuild the filtered pose list. Filters only narrow what is listed: they never change the
+    selected pose (which would apply it to the face board), see ``get_face_pose_previews_items``."""
     from ..properties import face_pose_preview_collections
 
-    if is_face_board_readonly(get_active_rig_instance()) or is_readonly_id(self.id_data):
-        return
-
-    preview_collection = face_pose_preview_collections["face_poses"]
     # Invalidate the cache so the items callback rebuilds the filtered list.
-    preview_collection.face_pose_previews_cache_key = None
-
-    metadata = ensure_face_pose_metadata()
-    enabled_tags = tuple(sorted(get_enabled_face_pose_tags(self)))
-    filtered = _filter_face_pose_metadata(metadata, self.category, enabled_tags, self.tag_match_mode)
-    filtered_ids = [entry["id"] for entry in filtered]
-    if not filtered_ids:
-        return
-
-    try:
-        current = self.face_pose_previews
-    except (TypeError, ValueError):
-        current = None
-
-    if current not in filtered_ids:
-        # Assigning triggers update_face_pose, which applies the pose.
-        self.face_pose_previews = filtered_ids[0]
+    face_pose_preview_collections["face_poses"].face_pose_previews_cache_key = None
 
 
 def update_face_pose_category(self: "CharacterFaceBoardProperties", context: "Context"):
