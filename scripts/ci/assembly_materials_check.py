@@ -200,6 +200,7 @@ def main() -> None:
                 "head": callbacks.get_head_texture_logic_node,
                 "body": callbacks.get_body_texture_logic_node,
             },
+            clothing=False,
         )
         print(result.report_text)
         check(result.count("failed") == 0, "no texture failed to wire")

@@ -117,12 +117,12 @@ def test_missing_files_are_reported(tmp_path: Path):
     assert plan["mat_eye_left", "sclera_base_color"][0] == "connected"
 
 
-def test_hidden_meshes_and_deferred_components(export: Path):
+def test_hidden_meshes_and_component_plans(export: Path):
     assembly = load_manifest(export)
     assert [m.mesh_index for m in assembly.hidden_meshes("head")] == [2, 6]
     assert assembly.hidden_meshes("body") == []
     plan = _plan(export)
-    assert plan["mat_shirt", "normal"][0::2] == ("deferred", "clothing is Slice 3")
+    assert plan["mat_shirt", "normal"][0::2] == ("connected", "Normal (DirectX)")
     assert plan["mat_hair", "highlight_mask"][0::2] == ("loaded", GROOM_UNCONNECTED)
 
 
@@ -155,7 +155,7 @@ def test_report_lists_counts_warnings_and_unknown_capabilities(tmp_path: Path):
     assert assembly.unknown_capabilities() == ["time_travel"]
     assert "semantic_components" in KNOWN_CAPABILITIES
     report = format_report(assembly, texture_plan(assembly), ["X_saliva_lod0_mesh"], ["something off"])
-    assert "Textures: 28 connected, 5 loaded, 1 deferred" in report
+    assert "Textures: 29 connected, 5 loaded" in report
     assert "WARNING: something off" in report
     assert "WARNING: Unknown required capabilities (may not import fully): time_travel" in report
     assert "WARNING: Exporter diagnostic: groom hair: 3 strands clamped" in report

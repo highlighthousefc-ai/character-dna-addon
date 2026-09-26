@@ -5,9 +5,10 @@ from typing import Any
 import bpy
 
 from .. import utilities
-from ..constants import PanelOrder
+from ..constants import PanelOrder, ToolInfo
 from ..ui import callbacks
 from ..ui.view_3d import RigInstanceDependentPanel
+from .clothing import CLOTHING_PROPERTY, HIDE_MODIFIER, body_hiding_enabled
 from .grooms import FUZZ_REGION, GROOM_PROPERTY
 from .wrinkles import AREAS, GAIN_INPUT, STRENGTH_PREFIX, is_offset_logic
 
@@ -94,4 +95,63 @@ class CHARACTER_DNA_PT_wrinkles(RigInstanceDependentPanel):
         layout.prop(logic.inputs[GAIN_INPUT], "default_value", text="Gain")
 
 
-classes = (CHARACTER_DNA_PT_grooms, CHARACTER_DNA_PT_wrinkles)
+def instance_bodies(instance: Any) -> list[bpy.types.Object]:
+    prefix = f"{instance.name}_body_lod"
+    return [o for o in bpy.data.objects if o.name.startswith(prefix) and o.modifiers.get(HIDE_MODIFIER)]
+
+
+def instance_clothing(instance: Any) -> list[bpy.types.Object]:
+    prefix = f"{instance.name}_"
+    return sorted(
+        (o for o in bpy.data.objects if o.get(CLOTHING_PROPERTY) and o.name.startswith(prefix)), key=lambda o: o.name
+    )
+
+
+class CHARACTER_DNA_PT_clothing(RigInstanceDependentPanel):
+    bl_label = "Clothing"
+    bl_category = "Character DNA"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_order = PanelOrder.GROOMS.value + 2
+
+    @classmethod
+    def poll(cls, context: Any) -> bool:
+        instance = utilities.get_active_rig_instance()
+        return super().poll(context) and instance is not None and bool(instance_clothing(instance))
+
+    def draw(self, _context: Any) -> None:
+        layout = self.layout
+        instance = utilities.get_active_rig_instance()
+        if layout is None or instance is None:
+            return
+        for scene_object in instance_clothing(instance):
+            row = layout.row(align=True)
+            row.label(text=scene_object.name.removeprefix(instance.name + "_"), icon="MOD_CLOTH")
+            shown = not scene_object.hide_viewport
+            row.prop(
+                scene_object,
+                "hide_viewport",
+                text="",
+                icon="RESTRICT_VIEW_OFF" if shown else "RESTRICT_VIEW_ON",
+                invert_checkbox=True,
+                emboss=False,
+            )
+            row.prop(
+                scene_object,
+                "hide_render",
+                text="",
+                icon="RESTRICT_RENDER_ON" if scene_object.hide_render else "RESTRICT_RENDER_OFF",
+                emboss=False,
+            )
+        bodies = instance_bodies(instance)
+        if bodies:
+            enabled = body_hiding_enabled(bodies)
+            layout.operator(
+                f"{ToolInfo.NAME}.toggle_body_under_clothes",
+                text="Body Under Clothes: " + ("Hidden" if enabled else "Shown"),
+                icon="HIDE_ON" if enabled else "HIDE_OFF",
+                depress=enabled,
+            )
+
+
+classes = (CHARACTER_DNA_PT_grooms, CHARACTER_DNA_PT_wrinkles, CHARACTER_DNA_PT_clothing)
