@@ -36,6 +36,7 @@ class PanelOrder(IntEnum):
     CONVERTER = 50
     MESH_EDITOR = 55
     RAW_CONTROL_EDITOR = 60
+    GROOMS = 65
     SHAPE_KEY_EDITOR = 70
     RBF_EDITOR = 80
     BEHAVIOR_VIEWER = 85

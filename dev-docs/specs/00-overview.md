@@ -1,9 +1,9 @@
-# MetaHuman DNA Blender Addon: Pro-Feature Recreation Specs
+# MetaHuman DNA Blender Addon: Planned Features
 
 **Audience:** Claude Code (and the human driving it).
-**Goal:** Build a Blender addon that imports MetaHuman `.dna` files, evaluates the face/body rig in real time, lets the user edit the DNA, and writes it back for Unreal Engine / MetaHuman Creator. The editor features mirror what Poly Hammer's *Character DNA* addon sells in its Pro edition.
+**Goal:** Build a Blender addon that imports MetaHuman `.dna` files, evaluates the face/body rig in real time, lets the user edit the DNA, and writes it back for Unreal Engine / MetaHuman Creator. The planned editors (specs `02` to `07`) cover backups, shape keys, raw controls, bone matching, RBF poses and mesh conversion.
 
-These specs are written from Poly Hammer's **public documentation**, Epic's public docs and repos, and public GitHub activity. Anything marked **VERIFY** is an assumption to confirm against real data or docs before relying on it. Put what you learn in `docs/FINDINGS.md` in the repo so later sessions don't rediscover it.
+These specs are written from public sources: Epic's documentation and repositories, public documentation of existing MetaHuman tools, and public GitHub activity. Anything marked **VERIFY** is an assumption to confirm against real data or docs before relying on it. Put what you learn in `dev-docs/FINDINGS.md` so later sessions don't rediscover it.
 
 ## Decision 0: fork the free addon, or build clean-room? (Human decides before coding)
 
@@ -11,17 +11,17 @@ These specs are written from Poly Hammer's **public documentation**, Epic's publ
 |---|---|---|
 | Speed | Months faster: import, face board, evaluation, animation, export already exist | You rebuild all of it (see `01` and `09`) |
 | License | The base is **GPL v3**. Anything derived from it must be distributed under GPL v3 with source. GPL doesn't forbid selling, but recipients get the same rights, so it can't be closed-source | Your choice, provided you comply with the MIT terms of Epic's libraries |
-| Risk | You inherit their architecture and bugs; Pro-tier code is not part of what you may assume is available | More work, more bugs, but you own the design |
-| Pro features | Still rebuilt from scratch either way (clean-room from behavior, specs `03` to `07`) | Same |
+| Risk | You inherit their architecture and bugs; only the published GPL code is available to build on | More work, more bugs, but you own the design |
+| Editors (`02` to `07`) | Written from scratch either way, from the behavior these specs describe | Same |
 
-The human should decide this first, and if unsure, get legal advice: nobody here is a lawyer. **Recommendation:** if you're comfortable with GPL v3, fork the free base and spend your effort on the Pro editors. If you want a closed-source or differently licensed product, go clean-room and follow `01` and `09` closely.
+The human should decide this first, and if unsure, get legal advice: nobody here is a lawyer. **Recommendation:** if you're comfortable with GPL v3, fork the free base and spend your effort on the editors. If you want a closed-source or differently licensed product, go clean-room and follow `01` and `09` closely.
 
 ## Ground rules (read first)
 
-1. **Clean-room for Pro features.** Implement from the behavior described in these specs. Do not copy, decompile, or reverse-engineer Pro code, and do not circumvent any licensing. Use your own operator, panel, and preference names and your own branding.
+1. **Clean-room for the editors.** Implement from the behavior described in these specs. Do not copy, decompile, or reverse-engineer any closed-source code, and do not circumvent any licensing. Use your own operator, panel, and preference names and your own branding.
 2. **Check licenses before reusing anything:** the free base addon (GPL v3), Epic's OpenRigLogic (MIT), and the MetaHuman DNA Calibration repo (**VERIFY** its license before bundling).
 3. **Check Epic's MetaHuman terms** before distributing anything, especially DNA/demo data. Don't commit Epic assets or a user's MetaHuman data to a public repo without checking.
-4. **Never assume an API.** Write small probe scripts that call the real library and record results in `docs/FINDINGS.md`.
+4. **Never assume an API.** Write small probe scripts that call the real library and record results in `dev-docs/FINDINGS.md`.
 
 ## Verified facts about the foundations (from public sources)
 

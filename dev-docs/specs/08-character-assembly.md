@@ -46,7 +46,7 @@ Produced by Poly Hammer Interchange 0.2.1 on UE 5.8.3 (closed-source freeware; w
   - hair: `Hair_HighlightsMask`.
   - SRMF, worked out from the images (FINDINGS "Slice 1"): R Specular, G Roughness, B Metallic (0 on skin), A probably a fuzz mask (not connected). Scatter goes to Subsurface Weight, and the detail normal is a tiling pore map (tiling not in the export).
 - Skin keeps the rig's wrinkle-map masks (Texture Logic node, unchanged). **But this export's CM1-3 and WM1-3 are *delta* maps (centred on 0.5), while the Texture Logic mixes *towards* each wrinkle map:** active wrinkles turn grey. Needs a delta blend (see FINDINGS "Slice 1"); open question.
-- Hide meshes whose material `profile` is `"hidden"`, in the viewport and render, and keep them hidden across LOD switches. Until Slice 2 brings the eyelash groom, this leaves the character without lashes.
+- Hide meshes whose material `profile` is `"hidden"`, in the viewport and render, and keep them hidden across LOD switches. The eyelash card mesh is hidden only when the eyelash groom imports (Slice 2).
 - Build a **texture-linking report**: for each material, the roles found, missing or unused.
 
 ### B. Hair import
@@ -62,7 +62,7 @@ The DCC export **does include hair**, as standard Alembic `ICurves` (`/Groom/Cur
   - Clamp negative widths to 0 (the beard has 67 of them).
   - Keep the root UV as a `surface_uv_coordinate` attribute, so strands can attach to the head through Blender's Curves surface.
 - **Cost:** hair is 112,776 strands and 1.72 M points; fuzz is 75,737 strands. Offer per-groom toggles and a viewport strand percentage.
-- Hair shading uses the manifest's `hair_color`, on the Principled Hair BSDF.
+- Hair shading uses the manifest's `hair_color`, on the Principled Hair BSDF (melanin, for Cycles). EEVEE renders that far lighter and redder, so an EEVEE output uses Unreal's resolved `color`. `white_amount` and the ramps have no input.
 
 ### C. Clothing
 - One FBX with every garment, skinned to its own 341-bone armature (body DNA has 342 joints).
@@ -81,8 +81,8 @@ Simple review presets (a 3-point rig and HDRI) that make skin and hair readable.
 | Slice | Scope | Status |
 |---|---|---|
 | 0 | Inspect a real export | **Done** (2026-09-25) |
-| 1 | Import from the manifest: head and body through the existing importer, every texture wired by manifest role and colour space (no file-name guessing), the eye-texture fix, hidden meshes hidden, texture report, capability check | Built (PR, not merged); see FINDINGS "Slice 1" |
-| 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Starts with a 1-day numpy Ogawa reader spike (P, width, uv, groom_guide, groom_color), benchmarked on the 1.72M-point hair; a native library only if that is clearly too slow |
+| 1 | Import from the manifest: head and body through the existing importer, every texture wired by manifest role and colour space (no file-name guessing), the eye-texture fix, hidden meshes hidden, texture report, capability check | Merged (PR #10); see FINDINGS "Slice 1" |
+| 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Built (PR, not merged). A numpy Ogawa reader (hair in 52 ms), so no native library; see FINDINGS "Slice 2" |
 | 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | |
 | 4 | Full materials: SRMF, scatter, detail normal, eyes, teeth masks, fabric | |
 | 5 | Hair physics (XPBD), Blender 5.2+ | |

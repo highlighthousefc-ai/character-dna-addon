@@ -35,4 +35,6 @@ ExportPlan.json
 *.dna
 !tests/test_files/dna/ada/*.dna
 !tests/test_files/dna/default/*.dna
+# Synthetic test data written by tests_core/fixtures/make_synthetic_groom.cpp (no Epic data).
+!tests_core/fixtures/*.abc
 tests/assembly_exports/

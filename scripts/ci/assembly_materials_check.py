@@ -203,7 +203,8 @@ def main() -> None:
         )
         print(result.report_text)
         check(result.count("failed") == 0, "no texture failed to wire")
-        check(result.count("connected") == 28 and result.count("loaded") == 4, "28 textures connected, 4 loaded")
+        check(result.count("connected") == 28 and result.count("loaded") == 5, "28 textures connected, 5 loaded")
+        check(all(groom.ok for groom in result.grooms) and len(result.grooms) == 3, "3 grooms imported")
 
         check_eyes()
         check_skin(callbacks)
