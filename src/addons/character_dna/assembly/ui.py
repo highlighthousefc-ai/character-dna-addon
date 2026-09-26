@@ -6,8 +6,10 @@ import bpy
 
 from .. import utilities
 from ..constants import PanelOrder
+from ..ui import callbacks
 from ..ui.view_3d import RigInstanceDependentPanel
 from .grooms import FUZZ_REGION, GROOM_PROPERTY
+from .wrinkles import AREAS, GAIN_INPUT, STRENGTH_PREFIX, is_offset_logic
 
 
 def instance_grooms(instance: Any) -> list[bpy.types.Object]:
@@ -61,4 +63,35 @@ class CHARACTER_DNA_PT_grooms(RigInstanceDependentPanel):
                 layout.label(text="Peach fuzz is hidden in the viewport and renders", icon="INFO")
 
 
-classes = (CHARACTER_DNA_PT_grooms,)
+class CHARACTER_DNA_PT_wrinkles(RigInstanceDependentPanel):
+    """Offset wrinkle maps: one strength per facial area, and an overall gain."""
+
+    bl_label = "Wrinkles"
+    bl_category = "Character DNA"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = PanelOrder.GROOMS.value + 1
+
+    @staticmethod
+    def logic_node(instance: Any) -> Any:
+        material = instance.head_material if instance is not None else None
+        return callbacks.get_head_texture_logic_node(material) if material else None
+
+    @classmethod
+    def poll(cls, context: Any) -> bool:
+        return super().poll(context) and is_offset_logic(cls.logic_node(utilities.get_active_rig_instance()))
+
+    def draw(self, _context: Any) -> None:
+        layout = self.layout
+        logic = self.logic_node(utilities.get_active_rig_instance())
+        if layout is None or logic is None:
+            return
+        layout.label(text="Wrinkle maps are offsets (Unreal 5.6+)", icon="INFO")
+        column = layout.column(align=True)
+        for area in AREAS:
+            column.prop(logic.inputs[STRENGTH_PREFIX + area], "default_value", text=area)
+        layout.prop(logic.inputs[GAIN_INPUT], "default_value", text="Gain")
+
+
+classes = (CHARACTER_DNA_PT_grooms, CHARACTER_DNA_PT_wrinkles)

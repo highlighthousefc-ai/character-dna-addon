@@ -1019,3 +1019,56 @@ Code layout:
 - **Slice 1 status check:**
   - **Disabling the wrinkle maps for delta-format exports did *not* land.** It was an open question, never implemented. The wrinkle-map fix PR covers it.
   - **The test-helper path guard did land in PR #10.** `synthetic_assembly.write_export` only writes inside the export folder. A regression assertion now checks no file is created outside it.
+
+## Wrinkle offsets (2026-09-26): wrinkle maps stored as offsets now blend as offsets
+Branch `feature/wrinkle-offsets`. This fixes the Slice 1 finding that the export's CM/WM wrinkle maps are **offsets centred on 0.5**. The inherited Texture Logic mixes *towards* each map, which turns active wrinkles white or grey. (Disabling the wrinkle maps for this format never landed in Slice 1; this replaces that idea.)
+
+### How the inherited logic works (materials.blend)
+- Each of the 41 region masks is a region of the `combined_masks` atlas, times its rig value (a driver writing to the Texture Logic node's input **by index**, `inputs[27]` and so on).
+- The masks are summed per wrinkle map into three weights: WM1 (plus lips), WM2 and WM3 (plus lips).
+- `MergeMaps` then mixes the base towards CM*n* / WM*n* by those weights, for colour and normal. A third instance makes the mask preview.
+- The inner group `head_shader_logic.004` is **shared by every character** in the file.
+
+### The fix (`dna_core/wrinkles.py`, `assembly/wrinkles.py`)
+- **Detection**, from the images: the CM1 mean is within 0.05 of 0.5 in every channel, and the WM1 blue mean is within 0.1 of 0.5 (full normal maps have about 1).
+  - On this export: CM1 is (0.496, 0.495, 0.496) and WM1 is (0.498, 0.498, 0.497), so it's detected.
+  - Full maps (older exports) keep the inherited mix untouched.
+- **What switching does:**
+  - the character gets its own copy of the inner group, `<instance>_head_shader_logic_offsets`;
+  - its colour and normal `MergeMaps` become offset merges: `base + Σ weight_i (map_i − 0.5) × gain`, clamped at 0;
+  - the CM/WM images are set to Non-Color.
+- **Colour offsets are summed in sRGB space:** base^(1/2.2), plus the offsets, then ^2.2. Summed in linear space, the CM1 crease offsets (about −0.09 in every channel) collapse green and blue on skin: linear G 0.155 → 0.065 (−58%) against R −27%. The creases of a brow raise rendered as **orange lines**. Summed in sRGB, the drops are −21% / −15%: a natural darkening.
+  - Evidence: renders "linear vs sRGB", and a CM1 offset visualisation (dark creases with a slight flush between them).
+- **Normal offsets** are added in their encoded 0–1 form. The Texture Logic's DirectX flip and Normal Map node follow as before.
+- **Per-area strength:** each region mask is multiplied by the strength of its facial area:
+
+| Area | Masks |
+|---|---|
+| Brows | raise inner/outer, down, lateral |
+| Eyes | blink, squint |
+| Nose | wrinkler |
+| Cheeks | cheek raise inner/outer/upper, smile |
+| Mouth | purse, lips, mouth stretch |
+| Chin & Jaw | chin raise, jaw open |
+| Neck | neck stretch |
+
+  - All 41 masks map to an area.
+  - The strengths and one **Wrinkle Gain** are appended **at the end** of the Texture Logic node's inputs, so every driver index stays valid (checked), and all default to 1.
+  - A **Wrinkles** sidebar panel shows them for a character in offset mode.
+  - **Gotcha:** a socket added to a node group's interface appears on existing nodes with value 0, not the socket's default. Left alone, all strengths would have been 0 and the wrinkles silently off. The code sets each new input to 1.
+- **Where it applies:** the assembly import (the report notes it), and also the plain DNA import (`components/base.import_materials` for the head), so an Unreal 5.6+ folder imported through Import DNA gets it too.
+- **Scale:** Unreal's exact wrinkle scale isn't in the export. Strength 1 and gain 1 are starting values; the results look natural but subtle.
+
+### Proof
+- **Before/after renders** of the user's character, EEVEE and Cycles, the same pose through the real rig (`--enable-autoexec`):
+  - brow raise: brow_raiseIn/Out;
+  - smile: mouth_cornerPull plus eye_cheekRaise;
+  - squint: eye_squintInner plus eye_cheekRaise 0.6.
+  - Before: white and black patches. After: forehead lines, crow's feet and smile lines, no artefacts.
+- **`tests_core/test_wrinkles.py`:** 7 tests: every mask has an area, detection (the real stats, full maps, mixed cases), the blend maths, and sRGB against linear (channel spread under 1.3 in sRGB, over 2 in linear).
+- **`scripts/ci/wrinkle_offsets_check.py`** (CI register job): 13 checks on the add-on's own head material with synthetic maps. Full maps are untouched; offsets switch; driver indices are kept; strengths are appended and equal 1; the per-character group copy; the other character keeps the shared mixing group; 41 masks are scaled; the images are Non-Color.
+  - It also runs a **Cycles bake of both merge groups**, compared with the numpy reference: colour (0.21397, 0.08182, 0.05754) and normal (0.62, 0.40, 1.0) match to five decimals.
+- **Mutation checks** (restored byte-identical):
+  1. The sRGB step removed: the bake check fails, with baked (0.222, 0.047, 0.022) against reference (0.214, 0.082, 0.058).
+  2. Masks not scaled by area strength: the CI check fails.
+  3. Detection disabled: `test_offset_detection` fails, and the CI check fails.

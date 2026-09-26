@@ -176,6 +176,9 @@ jobs:
       - name: Character assembly grooms attach to the head and follow the skin (synthetic groom)
         run: python scripts/ci/assembly_grooms_check.py
 
+      - name: Offset wrinkle maps blend as offsets (synthetic maps, Cycles bake of the node maths)
+        run: python scripts/ci/wrinkle_offsets_check.py
+
   package:
     name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)
     needs: [bindings]
