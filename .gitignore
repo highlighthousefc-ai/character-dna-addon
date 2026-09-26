@@ -27,7 +27,7 @@ coverage.xml
 AGENT_INSTRUCTIONS.md
 
 # Epic-derived MetaHuman exports (MetaHuman Creator DCC export / Poly Hammer Interchange
-# "Export Character For DCC"). Never commit them: see docs/FINDINGS "Character Assembly Slice 0".
+# "Export Character For DCC"). Never commit them: see dev-docs/FINDINGS.md "Character Assembly Slice 0".
 # The Ada/Default DNA fixtures predate this fork (upstream history) and stay tracked.
 CharacterAssemblyManifest.json
 ExportPlan.json
