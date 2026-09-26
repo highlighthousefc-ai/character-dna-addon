@@ -17,6 +17,7 @@ from mathutils import Euler, Matrix, Vector
 
 # local imports
 from ..constants import (
+    ASSEMBLY_CLOTHING_PROPERTY,
     ASSEMBLY_HIDDEN_PROPERTY,
     BODY_MAPS,
     EXCLUDED_FACE_BOARD_CONTROLS,
@@ -598,6 +599,7 @@ def set_active_lod(self: "CharacterViewOptionsProperties", value: int):
             scene_object.name.startswith(instance.name)
             and scene_object.type == "MESH"
             and not is_readonly_id(scene_object)
+            and not scene_object.get(ASSEMBLY_CLOTHING_PROPERTY)
         ):
             ignored_names = [
                 f"{instance.name}_eyeshell_lod{value}_mesh",

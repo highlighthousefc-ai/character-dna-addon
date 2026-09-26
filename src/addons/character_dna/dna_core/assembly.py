@@ -82,6 +82,14 @@ CONNECTED_ROLES: dict[str, dict[str, str]] = {
         "iris_normal": "Principled Normal (inside the iris)",
         "veins": "Principled Base Color (multiplies the sclera)",
     },
+    "clothes": {
+        "ambient_occlusion": "Base Color (multiplies; red channel)",
+        "normal": "Normal (DirectX)",
+        "stitch_mask": "Base Color (stitch colour where the mask is set)",
+        "micro_normal": "Normal (tiled micro normal)",
+        "micro_height": "Normal (tiled bump)",
+        "macro_variation": "Base Color (tiled variation)",
+    },
 }
 
 # Roles that are loaded (right image, right colour space) but not connected, and why.
@@ -91,8 +99,8 @@ UNCONNECTED_ROLES: dict[tuple[str, str], str] = {
     ("eye_ball", "dust"): "how Unreal applies it is not verified",
 }
 
-# Components a later slice imports, and which one.
-DEFERRED_COMPONENTS = {"fbx": "clothing is Slice 3"}
+# Components no slice imports yet.
+DEFERRED_COMPONENTS: dict[str, str] = {}
 # Hair material textures: Blender's Principled Hair BSDF has no input for them.
 GROOM_UNCONNECTED = "loaded, not connected: the Principled Hair BSDF has no input for it"
 
@@ -122,6 +130,8 @@ class Material:
     textures: tuple[Texture, ...] = ()
     # Hair materials: melanin, redness, tint, roughness, white_amount, color, ramps (as exported).
     hair_color: dict[str, Any] = field(default_factory=dict)
+    # Garments: color, stitch_color, normal_strength, micro_normal_strength, micro_scale, macro_scale.
+    fabric: dict[str, Any] = field(default_factory=dict)
 
     @property
     def hidden(self) -> bool:
@@ -163,6 +173,10 @@ class Component:
     def is_groom(self) -> bool:
         return self.type == "alembic"
 
+    @property
+    def is_clothing(self) -> bool:
+        return self.type == "fbx"
+
 
 @dataclass(frozen=True)
 class Assembly:
@@ -177,9 +191,14 @@ class Assembly:
     required_capabilities: tuple[str, ...]
     diagnostics: tuple[str, ...]
     rig_capabilities: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # DNA role -> its Geometry/<role>.json (per-mesh extras such as the faces under the clothes).
+    geometry: dict[str, Path] = field(default_factory=dict)
 
     def grooms(self) -> list[Component]:
         return [component for component in self.components if component.is_groom]
+
+    def clothing(self) -> list[Component]:
+        return [component for component in self.components if component.is_clothing]
 
     def unknown_capabilities(self) -> list[str]:
         return [name for name in self.required_capabilities if name not in KNOWN_CAPABILITIES]
@@ -233,6 +252,7 @@ def _material(root: Path, data: Mapping[str, Any]) -> Material:
         profile=str(data.get("profile", "creator")),
         textures=textures,
         hair_color=dict(data.get("hair_color") or {}),
+        fabric=dict(data.get("fabric") or {}),
     )
 
 
@@ -264,10 +284,13 @@ def load_manifest(path: Path) -> Assembly:
     materials = {m.name: m for m in (_material(root, entry) for entry in data.get("materials", []))}
     meshes: list[MeshEntry] = []
     dna_sha256: dict[str, str] = {}
+    geometry_paths: dict[str, Path] = {}
     for geometry in data.get("dna_geometry", []):
         role = str(_require(geometry, "role", "A dna_geometry entry"))
         if geometry.get("dna_sha256"):
             dna_sha256[role] = str(geometry["dna_sha256"])
+        if geometry.get("path"):
+            geometry_paths[role] = resolve(root, geometry["path"])
         for mesh in geometry.get("meshes", []):
             material = mesh.get("material", {})
             meshes.append(
@@ -300,6 +323,7 @@ def load_manifest(path: Path) -> Assembly:
         schema_version=version,
         dna=dna,
         dna_sha256=dna_sha256,
+        geometry=geometry_paths,
         meshes=tuple(meshes),
         materials=materials,
         components=components,
@@ -401,6 +425,24 @@ def texture_plan(assembly: Assembly) -> list[TextureStatus]:
         for name in component.materials:
             material = assembly.materials.get(name)
             if material is None or name in dna_names:
+                continue
+            if component.is_clothing:
+                connected = CONNECTED_ROLES.get(material.type, {})
+                plan.extend(
+                    TextureStatus(
+                        name,
+                        _label(material),
+                        material.type,
+                        texture.role,
+                        texture.path,
+                        texture.color_space,
+                        "missing" if not texture.exists else "connected" if texture.role in connected else "loaded",
+                        "file not found"
+                        if not texture.exists
+                        else connected.get(texture.role, f'unknown role for a "{material.type}" material'),
+                    )
+                    for texture in material.textures
+                )
                 continue
             plan.extend(
                 TextureStatus(

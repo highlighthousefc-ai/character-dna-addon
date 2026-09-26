@@ -130,7 +130,7 @@ def check_unreal_widths(assembly: object, importer: object, readers: dict) -> No
     """Match Unreal widths: the component's width override, tapered root -> tip (file widths otherwise)."""
     for scene_object in [o for o in bpy.data.objects if o.type == "CURVES"]:
         bpy.data.objects.remove(scene_object)
-    result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, match_unreal_widths=True)
+    result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, match_unreal_widths=True, clothing=False)
     hair = bpy.data.objects[next(g.object_name for g in result.grooms if g.name == "hair")]
     check(
         np.allclose(radius(hair)[:3], [0.00006, 0.0000435, 0.000027], rtol=1e-4),
@@ -163,13 +163,13 @@ def main() -> None:
         readers = {"head": FakeReader(synthetic_assembly.HEAD_MESHES)}
 
         # Without grooms the eyelash card mesh stays: nothing else gives the character lashes.
-        result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, grooms=False)
+        result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, grooms=False, clothing=False)
         check(
             not card.hide_get() and not card.get(ASSEMBLY_HIDDEN_PROPERTY), "no grooms: the eyelash card stays visible"
         )
         check(any("no eyelash groom" in w for w in result.warnings), "no grooms: the report says why")
 
-        result = importer.apply(assembly, INSTANCE, readers, logic_node_for={})
+        result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, clothing=False)
         print(result.report_text)
         check([g.name for g in result.grooms if g.ok] == ["hair", "eyelashes", "fuzz"], "3 grooms imported")
         check(card.hide_get() and card.hide_render, "eyelash groom imported: the card mesh is hidden")

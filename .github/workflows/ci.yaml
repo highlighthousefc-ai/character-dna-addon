@@ -179,6 +179,9 @@ jobs:
       - name: Offset wrinkle maps blend as offsets (synthetic maps, Cycles bake of the node maths)
         run: python scripts/ci/wrinkle_offsets_check.py
 
+      - name: Character assembly clothing binds to the body rig and hides the body under it (synthetic FBX)
+        run: python scripts/ci/assembly_clothing_check.py
+
   package:
     name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)
     needs: [bindings]

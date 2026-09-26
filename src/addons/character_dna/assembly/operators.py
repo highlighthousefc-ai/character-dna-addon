@@ -44,6 +44,20 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
         ),
     )  # pyright: ignore[reportInvalidTypeForm]
 
+    import_clothing: bpy.props.BoolProperty(
+        name="Clothing",
+        default=True,
+        description="Import the outfit (FBX) bound to the body rig, with fabric materials from the manifest",
+    )  # pyright: ignore[reportInvalidTypeForm]
+    hide_body_under_clothes: bpy.props.BoolProperty(
+        name="Hide Body Under Clothes",
+        default=True,
+        description=(
+            "Hide the body faces the export marks as covered by the clothes, so skin never pokes through. "
+            "Toggle it later in the Clothing panel"
+        ),
+    )  # pyright: ignore[reportInvalidTypeForm]
+
     def draw(self, _context: object) -> None:
         layout = self.layout
         if layout is None:
@@ -56,6 +70,10 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
         row = layout.row()
         row.enabled = self.import_grooms
         row.prop(self, "match_unreal_widths")
+        layout.prop(self, "import_clothing")
+        row = layout.row()
+        row.enabled = self.import_clothing
+        row.prop(self, "hide_body_under_clothes")
         layout.prop(self, "import_face_board")
 
     def execute(self, context: bpy.types.Context) -> set[str]:
@@ -73,6 +91,8 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
                 include_body=self.include_body,
                 grooms=self.import_grooms,
                 match_unreal_widths=self.match_unreal_widths,
+                clothing=self.import_clothing,
+                hide_under_clothes=self.hide_body_under_clothes,
             )
         except (ManifestError, RuntimeError) as error:
             self.report({"ERROR"}, str(error))
@@ -87,4 +107,24 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
         return utilities.dependencies_are_valid()
 
 
-classes = (CHARACTER_DNA_OT_import_assembly,)
+class CHARACTER_DNA_OT_toggle_body_under_clothes(bpy.types.Operator):
+    """Show or hide the body faces under the clothes (viewport and render)"""
+
+    bl_idname = f"{ToolInfo.NAME}.toggle_body_under_clothes"
+    bl_label = "Hide Body Under Clothes"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, _context: object) -> set[str]:
+        from .clothing import body_hiding_enabled, set_body_hiding
+        from .ui import instance_bodies
+
+        instance = utilities.get_active_rig_instance()
+        bodies = instance_bodies(instance) if instance is not None else []
+        if not bodies:
+            self.report({"WARNING"}, "No body with clothing coverage in the active character")
+            return {"CANCELLED"}
+        set_body_hiding(bodies, not body_hiding_enabled(bodies))
+        return {"FINISHED"}
+
+
+classes = (CHARACTER_DNA_OT_import_assembly, CHARACTER_DNA_OT_toggle_body_under_clothes)
