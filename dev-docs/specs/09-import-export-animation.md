@@ -1,6 +1,6 @@
 # 09: Import, Export, Animation and Baking (Free-Tier Parity)
 
-**Depends on:** 01. Pro is "everything in Free plus the editors", so a from-scratch build needs these. If you fork the free base, use this file as a checklist of what to verify instead of rebuild.
+**Depends on:** 01. The editors build on these basics, so a from-scratch build needs them. If you fork the free base, use this file as a checklist of what to verify instead of rebuild.
 
 ## A. Import
 - `File > Import > MetaHuman DNA (.dna)` and drag-and-drop into the viewport. Selecting a `head.dna` looks for a `body.dna` in the same folder and offers **Include Body**.
@@ -17,7 +17,7 @@
 - A **Force Evaluate** operator that resets and re-caches evaluation if it gets stuck.
 
 ## C. Animation import
-- **Face:** import face board animation curves from MetaHuman Animator onto the face board. (Delivery is via FBX; **VERIFY** the exact format. Poly Hammer's tooling uses an FBX loader, so plan for a robust FBX reader and handle large-file memory errors.)
+- **Face:** import face board animation curves from MetaHuman Animator onto the face board. (Delivery is via FBX; **VERIFY** the exact format. The forked base already has an FBX loader; plan for a robust FBX reader and handle large-file memory errors.)
 - **Body:** import body animation exported from MetaHuman Animator or retargeted animation onto the skeleton.
 - Known quirk to test: some control curves may fail to import when animation is authored elsewhere (a reported `Ctrl_C_eye` case).
 
@@ -31,7 +31,7 @@
   - **Calibrate (recommended):** requires vertex indices and bone names to match the original DNA. Applies your mesh and bone changes to a copy of the DNA using DNACalib-style commands (e.g. set vertex positions, neutral joint transforms, blend shape deltas). **VERIFY** the mapping. DNACalib isn't updated for 5.6+ characters, so expect to implement these edits through the `dna` writer's setters.
   - **Overwrite (experimental):** for when vertex indices or bone names differ; only when calibration isn't possible.
 - **Asset list:** meshes, armatures, images to export, each toggleable and renameable. Mesh names must follow the MetaHuman **LOD naming convention** so each mesh maps to its LOD.
-- **Options:** *Run Validations* before writing; *Update LODs* recalibrates lower LODs from your LOD0 edits (a Pro feature in Poly Hammer's product; **VERIFY** whether Epic's `CalculateMeshLowerLODsCommand` does the job); *Align Head and Body* aligns overlapping head/body bones to avoid a seam.
+- **Options:** *Run Validations* before writing; *Update LODs* recalibrates lower LODs from your LOD0 edits (**VERIFY** whether Epic's `CalculateMeshLowerLODsCommand` does the job); *Align Head and Body* aligns overlapping head/body bones to avoid a seam.
 - **Output:** one folder holding `head.dna`, `body.dna`, and a `Maps` subfolder (support `//` blend-relative paths).
 - **Buttons:** *Only Component* (one DNA, no textures) and *MetaHuman Creator* (head and body DNA plus textures in a format Creator accepts; **VERIFY** what manifest/JSON Creator expects by inspecting a real DCC Export).
 - **Round-trip test:** export from Blender, then import the result into MetaHuman Creator (Epic supports bringing modified resources back). This is the true end-to-end test.

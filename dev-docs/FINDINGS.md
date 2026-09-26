@@ -1072,3 +1072,30 @@ Branch `feature/wrinkle-offsets`. This fixes the Slice 1 finding that the export
   1. The sRGB step removed: the bake check fails, with baked (0.222, 0.047, 0.022) against reference (0.214, 0.082, 0.058).
   2. Masks not scaled by area strength: the CI check fails.
   3. Detection disabled: `test_offset_detection` fails, and the CI check fails.
+
+### Crown specks (2026-09-26): malformed strand points, repaired on import
+- **The symptom:** orange and white specks on the crown in Cycles. They stayed put from 64 to 1024 samples, so they're geometry, not fireflies.
+  - Zoomed in at 6000 px, they were **flat fins** several millimetres wide: far wider than any strand's radius (hair at most 0.1 mm, fuzz 0.011 mm).
+  - Hiding the fuzz removed the biggest (orange) fin; the hair produced the rest.
+- **Ruled out** by scanning every strand of all six grooms: NaN or infinite values, zero-length strands, segment spikes, width spikes, far-flung roots or tips, and bad surface attachment. The last check compares every evaluated strand with the original: 0.00 mm movement, length ratio exactly 1.
+  - **Gotcha:** a groom hidden in the viewport (the fuzz) isn't evaluated by the viewport depsgraph, so `evaluated_get` returns the original. Unhide it before checking what the attach modifier does to it.
+- **Cause:** per-segment defects that Cycles' ribbon hair can't orient.
+  - The hair has **43,300 repeated consecutive points** (zero-length segments) in 21,534 strands.
+  - Several grooms contain single-point **hairpin spikes**, where consecutive segments turn more than 120°. Real curls here turn about 25° per segment.
+- **Fix:** `dna_core.grooms.repair_strands`, run on import.
+  - It merges consecutive points closer than 20 µm (under every groom's strand width) and drops interior points that turn more than 120°. It repeats until clean, and never touches a strand's root.
+  - A strand left with fewer than 2 points is dropped.
+
+| Groom | Repeated points | Spike points | Strands dropped |
+|---|---|---|---|
+| hair | 43,835 | 1,081 | 0 |
+| beard | 783 | 2,569 | 36 (16,525 → 16,489) |
+| mustache | 16 | 150 | 0 |
+| fuzz | 91 | 94 | 0 |
+| eyebrows | 0 | 1 | 0 |
+| eyelashes | 0 | 0 | 0 |
+
+  - The hair's repair takes about 0.3 s.
+  - The counts are in the import report.
+- **Result:** the fins are gone in both the crown crop and the zoom. The beard looks unchanged, before against after. One faint glint remains: an ordinary highlight on a strand tip.
+- **Also this round:** Match Unreal Widths is now **on by default**, still an import option. Specs 07 and 09 are reworded neutrally.

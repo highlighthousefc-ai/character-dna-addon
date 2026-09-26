@@ -57,7 +57,9 @@ def test_guides_are_dropped():
     assert not np.any(np.all(converted.positions == 0, axis=1))  # no strand left at the origin
     np.testing.assert_allclose(converted.root_uv, [[0.25, 0.75], [0.5, 0.5], [0.9, 0.1]])
     kept = to_blender(read_groom(FIXTURE), drop_guides=False)
-    assert kept.counts.tolist() == [3, 4, 2, 3]
+    # kept, the guide (4 identical points at the origin) is degenerate: repaired away as a strand
+    assert kept.counts.tolist() == [3, 2, 3]
+    assert (kept.duplicate_points, kept.strands_dropped) == (3, 1)
 
 
 def test_radius_is_half_the_width_in_metres_and_never_negative():
@@ -103,3 +105,36 @@ def test_unreal_width_override_replaces_the_file_widths():
     assert converted.negative_widths == 0  # the override has no negative widths to clamp
     default = to_blender(read_groom(FIXTURE))
     np.testing.assert_allclose(default.radius[:3], [0.0001, 0.000075, 0.00005], rtol=1e-6)  # file widths
+
+
+def test_repair_drops_repeated_points_and_spikes_but_keeps_roots():
+    """Crown specks: repeated points and hairpin spikes render as fins in Cycles' ribbon hair."""
+    from dna_core.grooms import repair_strands
+
+    points = np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 0, 1],
+            [0, 0, 2],  # strand 0: point 2 repeats point 1
+            [5, 0, 0],
+            [5, 0, 1],
+            [5, 0, 3],
+            [5, 0, 1.5],
+            [5, 0, 4],  # strand 1: point 3 spikes back
+            [9, 0, 0],
+            [9, 0, 0],  # strand 2: two identical points -> nothing left to draw
+        ],
+        dtype=float,
+    )
+    keep, counts, curve_keep, duplicates, spikes = repair_strands(points, np.array([4, 5, 2]))
+    assert (duplicates, spikes) == (2, 1)
+    assert curve_keep.tolist() == [True, True, False]
+    assert counts.tolist() == [3, 4]
+    # strand 1 ran 0, 1, 3, 1.5, 4: the point that juts out (3) goes, leaving it monotonic
+    assert points[keep].tolist() == [[0, 0, 0], [0, 0, 1], [0, 0, 2], [5, 0, 0], [5, 0, 1], [5, 0, 1.5], [5, 0, 4]]
+
+
+def test_clean_groom_is_left_alone():
+    converted = to_blender(read_groom(FIXTURE))
+    assert (converted.duplicate_points, converted.spike_points, converted.strands_dropped) == (0, 0, 0)

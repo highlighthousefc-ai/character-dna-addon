@@ -37,10 +37,10 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
     )  # pyright: ignore[reportInvalidTypeForm]
     match_unreal_widths: bpy.props.BoolProperty(
         name="Match Unreal Widths",
-        default=False,
+        default=True,
         description=(
-            "Use each groom's Unreal width override and root-to-tip taper (e.g. hair 0.012 cm, tip at 45%) "
-            "instead of the per-strand widths stored in the groom files"
+            "Use each groom's Unreal width override and root-to-tip taper (e.g. hair 0.012 cm, tip at 45%), "
+            "as MetaHuman Creator renders them. Off: the per-strand widths stored in the groom files"
         ),
     )  # pyright: ignore[reportInvalidTypeForm]
 

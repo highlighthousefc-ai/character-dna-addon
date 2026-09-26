@@ -58,6 +58,9 @@ class BlenderGroom:
     color: np.ndarray | None  # (points, 3) float32
     guides_removed: int
     negative_widths: int
+    duplicate_points: int = 0  # consecutive repeated points removed
+    spike_points: int = 0  # single-point hairpin spikes removed
+    strands_dropped: int = 0  # strands left with fewer than 2 points
 
 
 def _curves_schema(archive: Archive) -> Compound:
@@ -127,6 +130,49 @@ def taper(counts: np.ndarray, root_scale: float, tip_scale: float) -> np.ndarray
     return (root_scale + (tip_scale - root_scale) * t).astype(np.float32)
 
 
+# Strand repair (FINDINGS "Crown specks"). Consecutive points closer than this (cm; 20 um, under any
+# groom's strand width) are one point, and an interior point whose two segments turn by more than 120
+# degrees is a spike (real curls here turn about 25 degrees per segment). Both leave Cycles' ribbon
+# hair without a stable direction there: it renders them as flat fins and glints.
+DUPLICATE_EPSILON = 0.002
+SPIKE_COSINE = -0.5
+
+
+def repair_strands(points: np.ndarray, counts: np.ndarray, max_passes: int = 8) -> tuple:
+    """Drop repeated points and hairpin spikes; the root (first point) of every strand stays.
+
+    Returns ``(point_keep, counts, curve_keep, duplicates, spikes)``: masks over the given points and
+    strands, the new points per kept strand, and how many points of each kind were removed. A strand
+    left with fewer than two points is dropped (``curve_keep`` False).
+    """
+    counts = np.asarray(counts, dtype=np.int64)
+    strand = np.repeat(np.arange(len(counts)), counts)
+    keep = np.ones(len(points), dtype=bool)
+    duplicates = spikes = 0
+    for _ in range(max_passes):
+        index = np.flatnonzero(keep)
+        position, owner = points[index], strand[index]
+        delta = np.diff(position, axis=0)
+        length = np.linalg.norm(delta, axis=1)
+        same = owner[1:] == owner[:-1]
+        repeated = same & (length < DUPLICATE_EPSILON)
+        if repeated.any():  # drop the later point of each repeated pair
+            keep[index[1:][repeated]] = False
+            duplicates += int(repeated.sum())
+            continue
+        tangent = delta / np.maximum(length, 1e-12)[:, None]
+        cosine = np.einsum("ij,ij->i", tangent[:-1], tangent[1:])
+        spike = same[:-1] & same[1:] & (cosine < SPIKE_COSINE)
+        spike &= ~np.concatenate([[False], spike[:-1]])  # one point per run per pass
+        if not spike.any():
+            break
+        keep[index[1:-1][spike]] = False
+        spikes += int(spike.sum())
+    new_counts = np.bincount(strand[keep], minlength=len(counts))
+    curve_keep = new_counts >= 2
+    return keep & curve_keep[strand], new_counts[curve_keep].astype(np.int32), curve_keep, duplicates, spikes
+
+
 def to_blender(
     groom: Groom,
     drop_guides: bool = True,
@@ -134,7 +180,7 @@ def to_blender(
     root_scale: float = 1.0,
     tip_scale: float = 1.0,
 ) -> BlenderGroom:
-    """Rendered strands in Blender's frame. Negative widths become 0.
+    """Rendered strands in Blender's frame, repaired (:func:`repair_strands`). Negative widths become 0.
 
     ``width`` (cm) replaces the file's widths with Unreal's groom width override, tapered from
     ``root_scale`` to ``tip_scale`` along each strand (Unreal's root / tip scale).
@@ -143,18 +189,24 @@ def to_blender(
     if drop_guides and groom.guide is not None:
         keep = ~groom.guide
     point_keep = np.repeat(keep, groom.counts)
+    points = groom.points[point_keep]
+    repaired, counts, curve_keep, duplicates, spikes = repair_strands(points, groom.counts[keep])
     widths = groom.widths if groom.widths is not None else np.zeros(len(groom.points), np.float32)
-    widths = widths[point_keep]
+    widths = widths[point_keep][repaired]
+    negative = int((widths < 0).sum()) if width is None else 0  # an override has nothing to clamp
     if width is not None:
-        widths = np.float32(width) * taper(groom.counts[keep], root_scale, tip_scale)
+        widths = np.float32(width) * taper(counts, root_scale, tip_scale)
     return BlenderGroom(
-        positions=(groom.points[point_keep] * AXIS_SIGN * CM_TO_M).astype(np.float32),
-        counts=groom.counts[keep].astype(np.int32),
+        positions=(points[repaired] * AXIS_SIGN * CM_TO_M).astype(np.float32),
+        counts=counts,
         radius=(np.maximum(widths, 0.0) * 0.5 * CM_TO_M).astype(np.float32),
-        root_uv=None if groom.root_uv is None else groom.root_uv[keep],
-        color=None if groom.color is None else groom.color[point_keep],
+        root_uv=None if groom.root_uv is None else groom.root_uv[keep][curve_keep],
+        color=None if groom.color is None else groom.color[point_keep][repaired],
         guides_removed=int((~keep).sum()),
-        negative_widths=int((widths < 0).sum()),
+        negative_widths=negative,
+        duplicate_points=duplicates,
+        spike_points=spikes,
+        strands_dropped=int((~curve_keep).sum()),
     )
 
 
