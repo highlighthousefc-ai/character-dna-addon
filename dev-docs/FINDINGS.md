@@ -1175,3 +1175,37 @@ Code layout:
 - `--factory-startup` scenes contain the default Cube, which hid the legs in the first renders. The import script removes it.
 - **Posing MetaHuman bones:** they run along local ±X (Unreal's convention), not Blender's Y. Leg bones point along −X, arm bones along +X. To aim a bone, rotate the vector from its head to its child's head; the bone's Y axis is a side axis.
 - **Process:** a mutation clean-up with `git checkout -- <file>` wiped uncommitted work in `importer.py`; it was restored from a scratch copy. Restore mutations from a backup copy, never with `git checkout`, when a file has uncommitted changes.
+
+## Character Assembly: complete (2026-09-26)
+Spec 08 is finished for the project's needs. One import (**Import Character Assembly**, from `CharacterAssemblyManifest.json`) builds the whole character from an Unreal "Export Character For DCC" folder. It takes about 13 s on the user's export.
+
+### What's imported
+| Part | What you get | Where it's documented |
+|---|---|---|
+| **Head and body** | Both DNAs through the existing importer, with the rig evaluating in real time. Hidden helper meshes (saliva, eyelash card, cartilage) are hidden in viewport and render. DNA SHA-256 is checked against the manifest. | Slice 1 (PR #10) |
+| **Skin** | Head and body materials wired by manifest role and colour space, with no file-name guessing: base colour, DirectX normal, tiled detail normal, scatter → subsurface weight, SRMF → specular, roughness and metallic. | Slice 1 |
+| **Eyes** | Sclera and iris colour and normal, split at the iris, with veins multiplied into the sclera (the "eyes import without textures" fix). Teeth colour and normal too. | Slice 1 |
+| **Wrinkles** | Offset-format wrinkle maps (Unreal 5.6+) blend as offsets: colour in sRGB, normals encoded. Each of 7 facial areas has a strength, plus a gain, all 1 by default. Older full-map exports keep the inherited mix. | "Wrinkle offsets" (PR #13) |
+| **Hair and grooms** | All 6 grooms (hair, beard, mustache, eyebrows, eyelashes, fuzz) as Blender hair curves attached to the head surface, through our numpy Alembic reader.<br>• Guides are dropped and malformed points repaired (the crown specks).<br>• Match Unreal Widths is on by default.<br>• Hair shading: Principled Hair (Cycles) and a Principled BSDF (EEVEE).<br>• Fuzz is hidden in the viewport and renders.<br>• The eyelash card is hidden when the lash groom imports. | Slice 2 (PR #12), "Crown specks" (PR #13) |
+| **Clothing** | `outfits.fbx`, LOD0, bound to the body rig by bone name. Fabric materials come from the manifest (AO, stitches, normal and micro normal, micro height, macro variation). The body under the clothes is hidden from `Geometry/body.json`, plus a 3-ring margin, with a toggle. No poke-through at rest or posed. | Slice 3 (PR #14) |
+
+**Totals on the user's export:**
+- **Textures:** 39 connected and 5 loaded; none missing.
+- **Strands:** 178,702 (hair 111,789; fuzz 44,550; beard 16,489; eyebrows 4,268; mustache 1,285; eyelashes 321).
+- **Hidden body faces:** 7,178 of 30,408 LOD0 faces under the clothes.
+
+### Deliberately excluded (decided)
+- **Hair physics** (spec 08 section D, slice 5): grooms are static, and the manifest's per-group physics settings are ignored.
+- **Lighting and camera rig** (section E, slice 6): no presets; use your own scene lighting.
+- **Cloth physics:** garments follow the skeleton only (linear skinning), so strong poses crease the fabric, for example at the armpit.
+- **Clothing LODs 1-3:** only LOD0 is imported. `body.json` does cover LODs 1-3, so hiding on lower body LODs would be straightforward later.
+
+### Defaults to revisit if needed
+These are chosen by eye or by measurement, not given by the export:
+- **Fabric roughness 0.8, macro variation strength 0.25, micro-height bump strength:** node values in each garment material, editable there.
+- **Body-hiding margin, 3 rings:** a code default (`assembly/clothing.grow_under_clothes(rings=3)`), not an import option yet.
+
+### Known limitations (loaded, not wired)
+- **Five maps load into their materials but aren't connected**, because their meaning isn't verified: teeth masks 001/002, eye dust (both eyes), and the hair highlight mask (the Principled Hair BSDF has no input for it). The SRMF alpha (probably fuzz) is also unconnected.
+- **EEVEE on Blender 5.1.2 (Metal) can hang** with an area light on the full clothed body; a sun light works (see Slice 3).
+- **Skin micro-detail** reads heavy in close-ups (tiled detail normal, Slice 1).
