@@ -51,6 +51,7 @@ class GroomResult:
     strands: int = 0
     points: int = 0
     negative_widths: int = 0
+    repaired: str = ""
     seconds: float = 0.0
     surface: str = ""
     widths: str = "file widths"
@@ -69,7 +70,8 @@ class GroomResult:
         return (
             f"  {self.name} ({self.region}): {self.strands} strands, {self.points} points "
             f"({self.strands_in_file} in the file - {self.guides_removed} guides), "
-            f"{self.widths}, {self.negative_widths} negative widths clamped, on {self.surface or 'no surface'}, "
+            f"{self.widths}, {self.negative_widths} negative widths clamped, {self.repaired}, "
+            f"on {self.surface or 'no surface'}, "
             f"{self.seconds:.2f} s{hidden}"
         )
 
@@ -208,6 +210,9 @@ def import_groom(
     result.strands = len(converted.counts)
     result.points = len(converted.positions)
     result.negative_widths = converted.negative_widths
+    result.repaired = f"repaired {converted.duplicate_points} duplicate and {converted.spike_points} spike points" + (
+        f", dropped {converted.strands_dropped} degenerate strands" if converted.strands_dropped else ""
+    )
 
     name = f"{instance_name}_{component.name}"
     if head is not None:  # positions are in the head's space (the head sits at the origin on import)

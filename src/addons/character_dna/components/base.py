@@ -542,6 +542,14 @@ class CharacterComponentBase(metaclass=ABCMeta):
 
         # set the image textures to match
         self._set_image_textures(materials)
+        # Unreal 5.6+ exports store the wrinkle maps as offsets from the base: blend them as offsets
+        if self.component_type == "head" and self.rig_instance.head_material:
+            from ..assembly import wrinkles
+
+            head_material = self.rig_instance.head_material
+            note = wrinkles.apply_if_offsets(callbacks.get_head_texture_logic_node(head_material), self.name)
+            if note:
+                logger.info(note)
         # prefix the material image names with the metahuman name
         for material in materials:
             utilities.prefix_material_image_names(material=material, prefix=self.name)

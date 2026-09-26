@@ -20,7 +20,7 @@ import bpy
 from ..constants import ASSEMBLY_HIDDEN_PROPERTY
 from ..dna_core import assembly as manifest
 from ..dna_core.assembly import Assembly, TextureStatus, with_status
-from . import grooms as groom_import, materials
+from . import grooms as groom_import, materials, wrinkles
 
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,12 @@ def apply(
     for entry in manifest.texture_plan(assembly):
         by_material.setdefault(entry.material, []).append(entry)
     _wire_textures(assembly, instance_name, readers, logic_node_for, by_material, wire, result)
+    if wire and "head" in logic_node_for:
+        head = head_surface(assembly, instance_name, readers.get("head"))
+        material = head.active_material if head is not None else None
+        note = wrinkles.apply_if_offsets(logic_node_for["head"](material), instance_name) if material else None
+        if note:
+            result.notes.append(note)
     if grooms:
         _import_grooms(assembly, instance_name, readers, by_material, result, match_unreal_widths)
     else:
@@ -100,10 +106,10 @@ def apply(
     if result.grooms:
         result.report_text += "\nGrooms (guides removed, (x, -y, z) / 100, radius = width / 2):\n"
         result.report_text += "\n".join(groom.line() for groom in result.grooms) + "\n"
-        result.report_text += "".join(f"Note: {note}\n" for note in result.notes)
         unmapped = sorted({key for groom in result.grooms for key in groom.unmapped_hair_color})
         if unmapped:
             result.report_text += f"Hair colour settings with no Principled Hair input: {', '.join(unmapped)}\n"
+    result.report_text += "".join(f"Note: {note}\n" for note in result.notes)
     write_report(result)
     return result
 

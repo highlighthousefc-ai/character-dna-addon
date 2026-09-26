@@ -45,7 +45,7 @@ Produced by Poly Hammer Interchange 0.2.1 on UE 5.8.3 (closed-source freeware; w
   - clothing: AO, Normal, StitchMask, MicroHeight, MicroNormal, MacroVariation;
   - hair: `Hair_HighlightsMask`.
   - SRMF, worked out from the images (FINDINGS "Slice 1"): R Specular, G Roughness, B Metallic (0 on skin), A probably a fuzz mask (not connected). Scatter goes to Subsurface Weight, and the detail normal is a tiling pore map (tiling not in the export).
-- Skin keeps the rig's wrinkle-map masks (Texture Logic node, unchanged). **But this export's CM1-3 and WM1-3 are *delta* maps (centred on 0.5), while the Texture Logic mixes *towards* each wrinkle map:** active wrinkles turn grey. Needs a delta blend (see FINDINGS "Slice 1"); open question.
+- Skin keeps the rig's wrinkle-map masks (Texture Logic node, unchanged). This export's CM1-3 and WM1-3 are *offset* maps (centred on 0.5). They're detected, and blended as offsets (colour in sRGB space) with a strength per facial area; see FINDINGS "Wrinkle offsets".
 - Hide meshes whose material `profile` is `"hidden"`, in the viewport and render, and keep them hidden across LOD switches. The eyelash card mesh is hidden only when the eyelash groom imports (Slice 2).
 - Build a **texture-linking report**: for each material, the roles found, missing or unused.
 
@@ -82,7 +82,7 @@ Simple review presets (a 3-point rig and HDRI) that make skin and hair readable.
 |---|---|---|
 | 0 | Inspect a real export | **Done** (2026-09-25) |
 | 1 | Import from the manifest: head and body through the existing importer, every texture wired by manifest role and colour space (no file-name guessing), the eye-texture fix, hidden meshes hidden, texture report, capability check | Merged (PR #10); see FINDINGS "Slice 1" |
-| 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Built (PR, not merged). A numpy Ogawa reader (hair in 52 ms), so no native library; see FINDINGS "Slice 2" |
+| 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Merged (PR #12). A numpy Ogawa reader (hair in 52 ms), so no native library; see FINDINGS "Slice 2" |
 | 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | |
 | 4 | Full materials: SRMF, scatter, detail normal, eyes, teeth masks, fabric | |
 | 5 | Hair physics (XPBD), Blender 5.2+ | |

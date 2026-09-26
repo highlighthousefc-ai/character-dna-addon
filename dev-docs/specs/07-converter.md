@@ -24,7 +24,7 @@ Re-fit a **base MetaHuman DNA** onto the user's own head and body meshes and pro
 - The user's mesh must share the **base MetaHuman UV layout**: no overlapping or extra UV islands. Validate this and fail with a clear message.
 - Use UV correspondence to map base-DNA vertices to positions on the user's surface, then **relocate the DNA's bones and shapes** to match (joint positions, neutral pose, blend shape deltas transformed into the new geometry).
 - **LOD calibration:** derive lower LODs from the user's LOD0 automatically during conversion so all levels stay in sync. Epic's DNACalib includes a `CalculateMeshLowerLODsCommand` that looks like the intended tool (**VERIFY**, and note DNACalib isn't updated for 5.6+ characters, so you may have to implement lower-LOD calculation yourself); the same capability backs the *Update LODs* export option in `09-import-export-animation.md`, so build it once and share it.
-- **Note:** propagating LOD0 edits to lower LODs is also an *export* option in the reference addon ("Update LODs", Pro). Build it once as a shared routine (see `01-foundation.md`, section E) and call it from both the exporter and the converter.
+- **Note:** propagating LOD0 edits to lower LODs is also a planned *export* option ("Update LODs", spec `09`). Build it once as a shared routine (see `01-foundation.md`, section E) and call it from both the exporter and the converter.
 - Write the new head/body DNAs via `dna_io`.
 
 ## Related workflow (document, and ideally support)
