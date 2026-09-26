@@ -3,6 +3,7 @@ import logging
 import queue
 import shutil
 
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # third party imports
@@ -836,6 +837,60 @@ class BakeComponentAnimation(BakeAnimationBase):
         return has_body_action or has_control_action
 
 
+@dataclass
+class CharacterImportResult:
+    valid: bool
+    head: CharacterComponentHead | CharacterComponentBody | None = None
+    body: CharacterComponentHead | CharacterComponentBody | None = None
+    messages: list[tuple[str, str]] = field(default_factory=list)
+
+
+def import_character(
+    file_path: Path, properties: CharacterImportProperties, body_file: Path | None = None
+) -> CharacterImportResult:
+    """Import a DNA file and, for a head, the body DNA ``body_file`` into the same rig instance.
+
+    The body goes first, as it always has. Shared by the DNA and the character assembly importers.
+    ``head`` holds the component of ``file_path`` (a body when a body DNA was chosen).
+    """
+    window_manager_properties = utilities.get_addon_window_manager_properties(bpy.context)
+    # we don't want to evaluate the dependency graph while importing the DNA
+    window_manager_properties.evaluate_dependency_graph = False
+    result = CharacterImportResult(valid=True)
+    try:
+        component = get_meta_human_component(file_path=file_path, properties=properties)
+        result.head = component
+        # if the component is a head, we import the body first if the user has selected the option
+        if body_file is not None and component.component_type == "head":
+            body_component = get_meta_human_component(
+                file_path=body_file, properties=properties, rig_instance=component.rig_instance
+            )
+            valid, message = body_component.ingest()
+            logger.info(f'Finished importing "{body_file}"')
+            result.messages.append(("INFO" if valid else "ERROR", message))
+            if not valid:
+                result.valid = False
+                return result
+            result.body = body_component
+
+        # now we can import the chosen .dna file
+        valid, message = component.ingest()
+        logger.info(f'Finished importing "{file_path}"')
+        result.messages.append(("INFO" if valid else "ERROR", message))
+        if not valid:
+            result.valid = False
+            return result
+
+        # populate the output items based on what was imported
+        callbacks.update_head_output_items(None, bpy.context)  # type: ignore[arg-type]
+    finally:
+        # now we can evaluate the dependency graph again
+        window_manager_properties.evaluate_dependency_graph = True
+    ops = utilities.get_addon_ops_module()
+    ops.force_evaluate()
+    return result
+
+
 class ImportCharacterDna(bpy.types.Operator, importer.ImportAsset, CharacterImportProperties):
     """Import a metahuman head from a DNA file"""
 
@@ -850,8 +905,6 @@ class ImportCharacterDna(bpy.types.Operator, importer.ImportAsset, CharacterImpo
     )  # pyright: ignore[reportInvalidTypeForm]
 
     def execute(self, context: "Context") -> set[str]:
-        window_manager_properties = utilities.get_addon_window_manager_properties(context)
-
         file_path = Path(bpy.path.abspath(self.filepath))
         if not file_path.exists():
             self.report({"ERROR"}, f"File not found: {file_path}")
@@ -866,43 +919,12 @@ class ImportCharacterDna(bpy.types.Operator, importer.ImportAsset, CharacterImpo
             self.report({"ERROR"}, "The scene unit scale must be set to 1.0")
             return {"CANCELLED"}
 
-        # we don't want to evaluate the dependency graph while importing the DNA
-        window_manager_properties.evaluate_dependency_graph = False
-        component = get_meta_human_component(
-            file_path=file_path,
-            properties=self.properties,  # type: ignore[arg-type]
-        )
-        # if the component is a head, we import the body first if the user has selected the option
         body_file = file_path.parent / "body.dna"
-        if self.properties.include_body and component.component_type == "head" and body_file.exists():
-            body_component = get_meta_human_component(
-                file_path=body_file,
-                properties=self.properties,  # type: ignore[arg-type]
-                rig_instance=component.rig_instance,
-            )
-            valid, message = body_component.ingest()
-            logger.info(f'Finished importing "{body_file}"')
-            if not valid:
-                self.report({"ERROR"}, message)
-                return {"CANCELLED"}
-            self.report({"INFO"}, message)
-
-        # now we can import the chosen .dna file
-        valid, message = component.ingest()
-        logger.info(f'Finished importing "{self.filepath}"')
-        if not valid:
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-        self.report({"INFO"}, message)
-
-        # populate the output items based on what was imported
-        callbacks.update_head_output_items(None, bpy.context)  # type: ignore[arg-type]
-        # now we can evaluate the dependency graph again
-        window_manager_properties.evaluate_dependency_graph = True
-        ops = utilities.get_addon_ops_module()
-        ops.force_evaluate()
-
-        return {"FINISHED"}
+        include_body = self.properties.include_body and body_file.exists()
+        result = import_character(file_path, self.properties, body_file if include_body else None)  # type: ignore[arg-type]
+        for level, message in result.messages:
+            self.report({level}, message)
+        return {"FINISHED"} if result.valid else {"CANCELLED"}
 
     @classmethod
     def poll(cls, _: "Context") -> bool:

@@ -33,7 +33,7 @@ jobs:
         run: uvx ruff@${RUFF_VERSION} check --exit-zero src tests scripts
 
       - name: Ruff (our code, enforced)
-        run: uvx ruff@${RUFF_VERSION} check src/addons/character_dna/dna_core src/addons/character_dna/runtime/python_evaluator.py tests_core scripts/ci bindings-build
+        run: uvx ruff@${RUFF_VERSION} check src/addons/character_dna/dna_core src/addons/character_dna/assembly src/addons/character_dna/runtime/python_evaluator.py tests_core scripts/ci bindings-build
 
       - name: Ruff format
         run: uvx ruff@${RUFF_VERSION} format --check src/addons/character_dna scripts/ci tests_core bindings-build
@@ -169,6 +169,9 @@ jobs:
 
       - name: Pose picker filters keep the selected pose (KI-1)
         run: python scripts/ci/pose_picker_check.py
+
+      - name: Character assembly wires textures by manifest role (synthetic export)
+        run: python scripts/ci/assembly_materials_check.py
 
   package:
     name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)

@@ -108,6 +108,10 @@ HEAD_MESH_SHADER_MAPPING = {
 }
 BODY_MESH_SHADER_MAPPING = {"body_lod": "body_shader"}
 
+# Set on a mesh object that a character assembly manifest marks hidden ("hidden" material profile):
+# the object stays hidden in the viewport and in renders, and switching LODs never shows it.
+ASSEMBLY_HIDDEN_PROPERTY = f"{ToolInfo.NAME}_assembly_hidden"
+
 TEMP_FOLDER = Path(tempfile.gettempdir()) / f"{ToolInfo.NAME}_addon"
 
 

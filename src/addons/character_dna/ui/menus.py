@@ -12,6 +12,7 @@ def dna_import_operator_menu_item(self: bpy.types.Menu, _: "Context"):
     if not self.layout:
         return
     self.layout.operator(f"{ToolInfo.NAME}.import_dna", text="MetaHuman DNA (.dna)")
+    self.layout.operator(f"{ToolInfo.NAME}.import_assembly", text="MetaHuman Assembly (CharacterAssemblyManifest.json)")
     self.layout.operator(f"{ToolInfo.NAME}.append_or_link_metahuman", text="MetaHuman Append/Link (.blend)")
 
 
