@@ -1099,3 +1099,78 @@ Branch `feature/wrinkle-offsets`. This fixes the Slice 1 finding that the export
   - The counts are in the import report.
 - **Result:** the fins are gone in both the crown crop and the zoom. The beard looks unchanged, before against after. One faint glint remains: an ordinary highlight on a strand tip.
 - **Also this round:** Match Unreal Widths is now **on by default**, still an import option. Specs 07 and 09 are reworded neutrally.
+
+## Character Assembly Slice 3 (2026-09-26): clothing
+Branch `feature/assembly-clothing`. The assembly import now also brings in every `fbx` clothing component, bound to the body rig, and hides the body faces under it. Two import options, **Clothing** and **Hide Body Under Clothes**, are on by default. No cloth physics.
+
+Code layout:
+- `dna_core/clothing.py`: which body faces the clothes cover (from `Geometry/body.json`), and the manifest's fabric settings. No bpy.
+- `assembly/clothing.py`: the Blender side: FBX import and binding, fabric material, the hiding modifier, the margin and the poke-through measure.
+- `assembly/ui.py`: the Clothing sidebar panel (per-garment visibility, the "Body Under Clothes" toggle).
+
+### The outfit FBX (Blender 5.1.2 FBX importer)
+- One skinned mesh, `outfits` (13,894 vertices, 25,258 quads, UV `DiffuseUV`), under an empty, on its own 341-bone armature rooted at `pelvis`.
+- **All 341 bones exist in the body rig** by name, and their rest heads agree within 0.008 mm. The body rig has 342 joints; the extra one is `root`, above `pelvis`.
+  - So binding is a rename-free re-target: re-parent the mesh to the body rig, point its Armature modifier at it, and delete the FBX's armature and empty. Vertex group names already match.
+  - The FBX's object transform is baked into the mesh first, so it sits where it did.
+- **Material slots:** 8 (`…_Short`, `…_Shirt`, `…_Short_2` … `…_Shirt_7`). **Only slots 0 and 1 have faces**; `_2` … `_7` are empty, not LOD copies. That answers the spec's VERIFY. The import drops the empty slots, so "LOD0 only" is automatic for this export.
+- Blender names a re-imported material `…_Short.001` when one already exists. The manifest match strips a trailing `.NNN`.
+
+### `Geometry/body.json`: which body faces the clothes cover
+- `meshes[]`, one per body LOD: `mesh_index, lod, name, vertex_count, face_count, source_slots, visibility_valid, unmapped_triangles, faces, uvs, visible_triangles`.
+- `visible_triangles` entries are `[face, v0, v1, v2]`: a DNA face index and one of its triangles. **A face with none of its triangles listed is covered.**
+
+| Mesh | Faces | Covered | Half-visible (one triangle listed) |
+|---|---|---|---|
+| body_lod0_mesh | 30,408 | 6,712 | 0 |
+| body_lod1_mesh | 7,606 | 1,675 | 19 |
+| body_lod2_mesh | 3,364 | 586 | 88 |
+| body_lod3_mesh | 998 | 244 | 30 |
+
+- The DNA importer builds the body with the DNA's faces **in the same order** (checked: all 30,408 LOD0 faces have the same vertex indices, in the same order, as `faces[]`), so face indices map one to one.
+- Half-visible faces are kept visible and counted in the report.
+- `head.json` has the same format (50 meshes); every head mesh is fully visible, so it isn't used.
+
+### Hiding
+- The covered faces go into a boolean face attribute, `character_dna_under_clothes`. The last modifier on the body, **"Hide Under Clothes"** (geometry nodes: Delete Geometry by that attribute), removes them after the Armature modifier. It's non-destructive, and the DNA mesh is untouched.
+- The toggle switches the modifier's viewport and render visibility.
+- **Margin:** the export's mask fits the rest pose. Posed, corrective bones bulge skin up to about a millimetre past a sleeve's edge. With the arm raised about 60°, 5 faces showed skin over the sleeve using the export's mask alone.
+  - The import therefore widens the mask by up to **3 rings** of neighbouring faces, adding a face only when a ray from its skin outward hits a garment within 3 cm at rest. The garment then covers it, so hiding it never opens a hole, while skin past a sleeve or leg opening (open air outward) stays.
+  - On the user's export this adds 466 faces (7,178 hidden in total).
+  - Posed poke-through: 2 rings left 1 face (0.5 mm at the left sleeve's hem, bicep corrective); 3 rings leave 0; 4 rings hide 80 more faces for no change.
+- **Poke-through measure** (`clothing.poke_through`): from each rendered body face, a ray goes inward up to 3 cm. It counts when it hits a garment surface **facing outward**, the same way as the skin, which means the garment's visible side lies under the skin.
+  - A first version counted any hit and over-counted: a hem's inner layer sits a few millimetres under the skin at sleeve and leg openings, but faces inward and can't be seen.
+
+### Fabric material
+- It's built from the manifest's `clothes` material by texture role:
+  - **colour:** `fabric.color` × the stitch mask's colour × AO (its **red** channel) × macro variation (×10 tiling, strength 0.25).
+  - **normal:** the normal map is **DirectX style** (green flipped, as for the head and body), mixed with the micro normal tiled ×80 (shorts) or ×100 (shirt). Micro height is used as a bump.
+  - **roughness:** 0.8.
+- **Guesses (no manifest value):** roughness 0.8, macro strength 0.25 and the bump strength. The export carries textures and a few parameters, not Unreal's fabric material; these were picked by eye in the renders.
+
+### Import on the user's export (Blender 5.1.2)
+- 12.9 s for the whole assembly; the outfit takes 0.55 s of it (FBX import, bind, fabric, hiding and margin).
+- Report line: "outfits: LOD0 slots [Short, Shirt], dropped empty 6; bound to the body rig (341 bones, rest within 0.008 mm)"; "Body under the clothes: 7178 LOD0 faces (6712 from Geometry/body.json, 466 covered neighbours as a margin), hiding on".
+- Textures: 39 connected, 5 loaded (11 of the 39 are fabric).
+
+### Tests and proof
+- **Poke-through on the real character** (`clothing.poke_through`, LOD0). The pose is the left arm raised about 60° above horizontal with the elbow slightly bent, and a marching step: hip flexed 45°, knee bent about 65°.
+
+| | Hiding on | Hiding off |
+|---|---|---|
+| Rest | 0 faces | 11 |
+| Posed | **0** | 115 |
+
+- **Renders**, Cycles and EEVEE, sun light: clothed front, side and back; posed front, 3/4 and back, with shoulder and knee close-ups. No skin shows through the clothes.
+- **`tests_core/test_clothing.py`:** 5 tests: covered faces, half-visible faces, invalid visibility refused, every LOD of body.json, fabric defaults.
+- **`scripts/ci/assembly_clothing_check.py`** (CI register job, macOS and Windows): 15 checks on a synthetic FBX outfit (a tube skinned to its own 2-bone skeleton, one unused slot) over a body tube that bulges through it.
+  - It covers: binding to the body rig, the FBX armature deleted, the unused slot dropped, fabric wiring by role, covered faces marked, and the hiding modifier last.
+  - It checks poke-through = 0 at rest and with the spine bent 25°, and that covered faces are removed. With the hiding off, the bulge pokes through (> 0), and the toggle works in the viewport and the render.
+  - The poke-through checks run before the face-count check, so broken hiding fails on the poke-through assertion itself.
+- **Mutation check** (restored byte-identical): the hiding modifier gets no node group, so it passes the body through. The CI check exits 1 at "no skin over the clothes (hiding on, rest)", after the 9 binding, fabric and marking checks pass.
+
+### Dead ends and gotchas
+- **EEVEE hangs on the full-body clothed scene with an area light.** It stalls in `ShadowModule::shadow_update_finished`, waiting on `MTLStorageBuf::read` (Blender 5.1.2, Metal). A larger shadow pool (1024 MB) didn't help. A sun light renders fine, so the proof renders use a sun. Not our code; worth a Blender bug report if it reproduces in a plain scene.
+- `--factory-startup` scenes contain the default Cube, which hid the legs in the first renders. The import script removes it.
+- **Posing MetaHuman bones:** they run along local ±X (Unreal's convention), not Blender's Y. Leg bones point along −X, arm bones along +X. To aim a bone, rotate the vector from its head to its child's head; the bone's Y axis is a side axis.
+- **Process:** a mutation clean-up with `git checkout -- <file>` wiped uncommitted work in `importer.py`; it was restored from a scratch copy. Restore mutations from a backup copy, never with `git checkout`, when a file has uncommitted changes.

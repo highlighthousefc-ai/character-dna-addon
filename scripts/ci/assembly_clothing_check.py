@@ -226,15 +226,16 @@ def main() -> None:
         body.data.attributes[clothing.UNDER_CLOTHES_ATTRIBUTE].data.foreach_get("value", covered)
         check(covered.sum() >= 24 * 8, f"covered body faces marked ({int(covered.sum())})")
         check(body.modifiers[-1].name == clothing.HIDE_MODIFIER, "the hiding modifier runs after the Armature")
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        shown = len(body.evaluated_get(depsgraph).data.polygons)
-        check(shown == len(body.data.polygons) - covered.sum(), "covered faces are removed from the rendered body")
+        # Poke-through first: it is the user-visible result, so a broken hiding fails here.
         check(clothing.poke_through(body, [outfit]) == 0, "no skin over the clothes (hiding on, rest)")
         pose = body_rig.pose.bones["spine_01"]
         pose.rotation_mode = "XYZ"
         pose.rotation_euler = (math.radians(25), 0, 0)
         bpy.context.view_layer.update()
         check(clothing.poke_through(body, [outfit]) == 0, "no skin over the clothes (hiding on, spine bent)")
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        shown = len(body.evaluated_get(depsgraph).data.polygons)
+        check(shown == len(body.data.polygons) - covered.sum(), "covered faces are removed from the rendered body")
         clothing.set_body_hiding([body], False)
         bpy.context.view_layer.update()
         through = clothing.poke_through(body, [outfit])

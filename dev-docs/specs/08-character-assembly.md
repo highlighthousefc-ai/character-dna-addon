@@ -65,10 +65,10 @@ The DCC export **does include hair**, as standard Alembic `ICurves` (`/Groom/Cur
 - Hair shading uses the manifest's `hair_color`, on the Principled Hair BSDF (melanin, for Cycles). EEVEE renders that far lighter and redder, so an EEVEE output uses Unreal's resolved `color`. `white_amount` and the ramps have no input.
 
 ### C. Clothing
-- One FBX with every garment, skinned to its own 341-bone armature (body DNA has 342 joints).
+- One FBX with every garment, skinned to its own 341-bone armature (body DNA has 342 joints: the extra is `root`). Every FBX bone is in the body rig by name, rest within 0.008 mm.
 - Rebind the garment to the body rig by bone name.
-- Material slots: 8 in the FBX (`…_Short`, `…_Shirt`, `…_Short_2` … `…_Shirt_7`) against 2 in the manifest. These are probably LOD copies; **VERIFY** before relying on it.
-- Apply the body skin-culling mask from `Geometry/body.json` `visible_triangles` so skin doesn't poke through.
+- Material slots: 8 in the FBX (`…_Short`, `…_Shirt`, `…_Short_2` … `…_Shirt_7`) against 2 in the manifest. **Verified:** only the first two have faces; `_2` … `_7` are empty and dropped.
+- Apply the body skin-culling mask from `Geometry/body.json` `visible_triangles` so skin doesn't poke through: a face with none of its triangles listed is covered. The mask fits the rest pose, so the import widens it by up to 3 rings of neighbours the garment covers at rest (FINDINGS "Slice 3").
 
 ### D. Hair dynamics
 - The manifest gives Unreal's per-group physics (`simulate` is false for every groom in the sample): sub_steps, iteration_count, air_drag, bend damping and stiffness, collision_radius, gravity.
@@ -83,7 +83,7 @@ Simple review presets (a 3-point rig and HDRI) that make skin and hair readable.
 | 0 | Inspect a real export | **Done** (2026-09-25) |
 | 1 | Import from the manifest: head and body through the existing importer, every texture wired by manifest role and colour space (no file-name guessing), the eye-texture fix, hidden meshes hidden, texture report, capability check | Merged (PR #10); see FINDINGS "Slice 1" |
 | 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Merged (PR #12). A numpy Ogawa reader (hair in 52 ms), so no native library; see FINDINGS "Slice 2" |
-| 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | |
+| 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | PR open (not merged). LOD0, fabric from the manifest, hiding toggle; no poke-through at rest or posed; see FINDINGS "Slice 3" |
 | 4 | Full materials: SRMF, scatter, detail normal, eyes, teeth masks, fabric | |
 | 5 | Hair physics (XPBD), Blender 5.2+ | |
 | 6 | Lighting and camera presets | |

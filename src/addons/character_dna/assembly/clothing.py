@@ -113,7 +113,7 @@ def hide_under_clothes(body: bpy.types.Object, hidden: np.ndarray) -> int:
 
 
 def grow_under_clothes(
-    body: bpy.types.Object, garments: list[bpy.types.Object], hidden: np.ndarray, rings: int = 2, depth: float = 0.03
+    body: bpy.types.Object, garments: list[bpy.types.Object], hidden: np.ndarray, rings: int = 3, depth: float = 0.03
 ) -> np.ndarray:
     """Widen the covered faces by up to ``rings`` rings of neighbours that the clothes cover at rest.
 
