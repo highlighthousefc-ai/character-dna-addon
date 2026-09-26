@@ -815,3 +815,101 @@ Re-checked 2026-09-25: Blender 5.1.2 imports all six files in under 30 ms each. 
 5. Body-under-clothes hiding goes in Slice 3, with clothing.
 6. SRMF channels: work them out from the images, and state confidence per channel.
 7. Fuzz: import it hidden in the viewport, enabled for render, with a one-click toggle.
+
+## Character Assembly Slice 1 (2026-09-25): import from the manifest, textures by role
+Branch `feature/assembly-import`. **File > Import > MetaHuman Assembly (CharacterAssemblyManifest.json)** does four things:
+- imports head and body through the existing DNA importer, via the new shared `operators.import_character`, into one rig instance;
+- wires every texture of the DNA meshes' materials by **manifest role and colour space**, never by file name;
+- hides the meshes whose material profile is `"hidden"`;
+- writes a report to the Text datablock `<instance>_assembly_report`.
+
+Code layout:
+- `dna_core/assembly.py` (no bpy): manifest reader, path safety and the texture plan.
+- `assembly/materials.py`: node building.
+- `assembly/importer.py` and `assembly/operators.py`: the pipeline and the operator.
+
+### Result on the user's export (real data, Blender 5.1.2)
+- **Textures:** 28 connected, 4 loaded but not connected (teeth masks ×2, eye dust ×2), 12 deferred (clothing: Slice 3; hair highlight mask: Slice 2). 0 missing, 0 failed.
+- **Hidden:** with the default LOD0 import, `saliva_lod0`, `eyelashes_lod0` and `cartilage_lod0` are hidden in viewport and render, and tagged `character_dna_assembly_hidden`. The LOD switch now skips tagged objects; it used to show `eyelashes_lodN` again.
+- **Integrity:** DNA SHA-256 matches the manifest. The head's Texture Logic node and its 41 wrinkle-mask drivers are intact.
+- **Timing:** 11.7 s in background mode; 12.9 s for the first import of a fresh GUI session; 15.6 s for a repeat import.
+  - One outlier, not reproduced: 210 s on the very first GUI launch of a brand-new sandbox profile. The profile showed the assembly step itself is about 0.6 s; the rest is the existing DNA import. Cause unknown (first-run GPU shader compilation is a guess, not verified).
+- **GUI screenshots** (sandbox profile, packaged build): face close-up, eyes close-up, full body, head skin node tree (overview and detail).
+
+### Eye shader (the "eyes import without textures" fix)
+- **Layout, measured:**
+  - In the eye mesh's UVs the front of the eye is at (0.5, 0.5).
+  - A UV radius of 0.15-0.175 is 0.585-0.68 cm from the eye's axis. The human limbus is at about 0.59 cm.
+  - `Eyes_ScleraBasecolor` is plain grey inside a radius of about 0.15 (low saturation, 0.02-0.03), where the iris goes.
+  - `Eyes_IrisBasecolor` / `Eyes_IrisNormal` fill their whole 0-1 square: the pupil reaches a radius of about 0.11, and the iris-normal detail reaches about 0.48.
+- **So:** the iris maps are scaled into the disc of **radius 0.155** at the UV centre, blended across a 0.012-wide smoothstep limbus. Both values are labelled Value nodes you can tune.
+  - Veins multiply the sclera. The sclera map already contains some veins, so the default multiply may darken them.
+  - Dust is loaded but not connected, because how Unreal applies it isn't verified.
+- **Verified visually:** iris fibres, pupil and veined sclera in EEVEE renders and in Material Preview (screenshots).
+
+### Normal maps are DirectX style (verified by curl)
+- **Method:** a real tangent-space normal map is the gradient of a height field, so its curl is about 0 only when read with the right green-channel sign.
+- **Results** (curl read as OpenGL / as DirectX; lower is the right convention):
+
+| Map | OpenGL | DirectX |
+|---|---|---|
+| Head_DetailNormal | 0.107 | **0.031** |
+| Eyes_IrisNormal | 0.031 | **0.006** |
+| Eyes_ScleraNormal | 0.014 | **0.003** |
+| Teeth_Normal | 0.079 | **0.060** (weak) |
+| Head_Normal (8K, subsampled) | 0.021 | **0.018** (weak) |
+| Body_Normal (8K, subsampled) | 0.020 | **0.017** (weak) |
+
+- **Conclusion:** all DirectX, consistent with the existing Texture Logic's DirectX→OpenGL flip. The new eye and teeth normals are flipped the same way.
+
+### SRMF, worked out from the images (Head_SRMF and Body_SRMF: 8K, RGBA)
+| Channel | Reading | Confidence | Wired to |
+|---|---|---|---|
+| R | Specular. A pore and cavity pattern, darker in creases; mean 0.60 (head) / 0.60 (body). Unreal's Specular 0.5 means F0 4%, the same scale as Blender's Specular IOR Level. | medium-high | Principled Specular IOR Level |
+| G | Roughness. Regional: lower on the nose, higher on the lips and the stubble area above the lip; mean 0.66 / 0.69, typical skin values. | medium-high | Principled Roughness |
+| B | Metallic. Exactly 0 everywhere, as expected for skin. | high | Principled Metallic |
+| A | Probably a fuzz (peach-fuzz / sheen) mask: white on the skin, black on the lips and inside the eyes. Could also be a cavity or flush mask. | low-medium | **not connected** |
+
+`Head_Scatter` / `Body_Scatter` are greyscale (R = G = B); head 0.53-0.65, body 0-0.64. They're wired to Subsurface Weight, as sRGB (the manifest's tag).
+- Subsurface Scale is 0.003 m and Radius (1, 0.35, 0.2). These are starting values, not measured.
+- Medium confidence.
+
+`Head_DetailNormal` and `Body_DetailNormal` have identical statistics: they're one tiling pore map. It's whiteout-blended into the main normal (tiling 16, strength 0.35). **Unreal's tiling isn't in the export; low confidence.** Both values are tunable nodes.
+
+Teeth masks, loaded but not connected; the channel meanings are guesses:
+- `Mask001`: R = teeth vs gums, G = mostly white with darker tooth tips, B = tongue speckle, A = tongue mask.
+- `Mask002`: R = depth / occlusion gradient, G/B = gum-line and tooth-edge outlines.
+
+### Mismatch with the spec: this export's wrinkle maps are DELTA maps
+- **Stats:**
+  - `Head_Basecolor_Animated_CM1-3` (512²) average 0.495 in every channel (sd 0.01-0.02).
+  - `Head_Normal_Animated_WM1` (1024²) averages 0.497-0.498 in R, G **and B**. A real tangent normal map has B ≈ 1, like `Head_Normal`'s 0.999.
+- **So:** these are offsets from the base maps, and the manifest's `Non-Color` tag on CM1-3 is correct.
+- **The problem:** the inherited Texture Logic (`MergeMaps`) *mixes towards* each wrinkle map as its mask rises. With delta maps an active wrinkle turns the skin flat grey or teal.
+  - Reproduced: with all 41 mask inputs forced to 1, the face renders dark teal (`6_wrinkle_masks_off_vs_all_on.png`).
+  - At rest (all masks 0) the look is right.
+  - This also affects the plain DNA import of such exports (it loads the same files), so it isn't new in Slice 1. But the spec's "wrinkle maps already work" is **false for this export format**. Open question for the user.
+
+### Tests and proof
+- **`tests_core/test_assembly.py`:** 20 tests on a synthetic v2 manifest (`tests_core/synthetic_assembly.py`, no Epic data). They cover:
+  - schema versions;
+  - path escapes (absolute, `..`, drive letters);
+  - colour space from the manifest, not the file name;
+  - the eye roles;
+  - missing files, hidden meshes, deferred components and unknown roles;
+  - report contents;
+  - SHA mismatch.
+  - Full suite: 86 passed with the bindings required.
+- **`scripts/ci/assembly_materials_check.py`** (CI register job, bpy 5.1 and 5.2, macOS and Windows): the real wiring code against the add-on's own material templates. 32 checks, including eyes, skin, teeth, colour spaces, hidden meshes and hidden meshes surviving an LOD switch.
+- **Mutation checks** (each fix reverted, then restored byte-identical):
+  1. Eye wiring removed: the CI check exits 1.
+  2. Eye roles dropped from the plan: 3 pytest failures, including `test_eye_textures_are_connected_by_role`.
+  3. LOD switch ignoring the hidden tag: the CI check fails with "LOD 0 switch keeps the eyelash card hidden".
+
+### Dead ends and gotchas
+- **Test-helper hazard, found and fixed before commit:** the synthetic-export writer first created a stand-in file at *every* manifest path, including the deliberately escaping ones. The `/etc/passwd` case failed only on permissions, and nothing was modified (checked). It now writes only inside the export folder.
+- **GUI harness:**
+  - `bpy.ops.screen.screenshot` doesn't capture popup menus.
+  - `wm.call_menu` from a timer doesn't show a menu.
+  - Node-editor `view_selected` from a timer only takes effect on the next real event. A simulated NUMPAD_PERIOD key over the editor works.
+- **Hiding the eyelash card mesh leaves the character without lashes until Slice 2** imports the eyelash groom.

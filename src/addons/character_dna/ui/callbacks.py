@@ -17,6 +17,7 @@ from mathutils import Euler, Matrix, Vector
 
 # local imports
 from ..constants import (
+    ASSEMBLY_HIDDEN_PROPERTY,
     BODY_MAPS,
     EXCLUDED_FACE_BOARD_CONTROLS,
     FACE_BOARD_SWITCHES,
@@ -606,7 +607,11 @@ def set_active_lod(self: "CharacterViewOptionsProperties", value: int):
                 f"{instance.name}_body_lod{value}_mesh",
             ]
             set_hidden(scene_object, True)
-            if scene_object.name.endswith(f"_lod{value}_mesh") and scene_object.name not in ignored_names:
+            if (
+                scene_object.name.endswith(f"_lod{value}_mesh")
+                and scene_object.name not in ignored_names
+                and not scene_object.get(ASSEMBLY_HIDDEN_PROPERTY)
+            ):
                 set_hidden(scene_object, False)
 
     # un-hide the body lod. There are 2 head lods per body lod

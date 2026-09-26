@@ -9,6 +9,7 @@ import bpy
 import bpy.utils.previews  # pyright: ignore[reportMissingModuleSource, reportUnusedImport]
 
 from . import (
+    assembly,
     constants,
     manual_map,
     missing_addon_notice,
@@ -135,6 +136,7 @@ def register():
     native_runtime.register()
     missing_addon_notice.register()
     shape_key_editor.register()
+    assembly.register()
 
     # add event handlers
     for handler_name, handler_function in app_handlers.items():
@@ -149,6 +151,7 @@ def unregister():
 
     native_runtime.unregister()
     missing_addon_notice.unregister()
+    assembly.unregister()
     shape_key_editor.unregister()
 
     utilities.teardown_scene()
