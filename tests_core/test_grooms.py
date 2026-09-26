@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from dna_core.alembic import AlembicError, Archive
-from dna_core.grooms import hair_shader_inputs, read_groom, to_blender
+from dna_core.grooms import hair_shader_inputs, read_groom, taper, to_blender
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "synthetic_groom.abc"
@@ -88,3 +88,18 @@ def test_hair_colour_maps_to_the_principled_hair_melanin_inputs():
     )
     assert values == {"Melanin": 0.9, "Melanin Redness": 0.25, "Tint": (1.0, 0.5, 0.25, 1.0), "Roughness": 0.37}
     assert unmapped == ["white_amount", "ramps"]
+
+
+def test_taper_runs_from_root_to_tip_scale_along_each_strand():
+    np.testing.assert_allclose(taper(np.array([3, 2]), 1.0, 0.45), [1.0, 0.725, 0.45, 1.0, 0.45], rtol=1e-6)
+    np.testing.assert_allclose(taper(np.array([1]), 1.0, 0.5), [1.0])  # a single point is a root
+
+
+def test_unreal_width_override_replaces_the_file_widths():
+    """Match Unreal widths: the component's width (cm) tapered root -> tip, instead of the file's."""
+    converted = to_blender(read_groom(FIXTURE), width=0.012, root_scale=1.0, tip_scale=0.45)
+    # strand 0 (3 points): radius = 0.012 cm / 2 at the root, x0.725 midway, x0.45 at the tip, in metres
+    np.testing.assert_allclose(converted.radius[:3], [0.00006, 0.0000435, 0.000027], rtol=1e-5)
+    assert converted.negative_widths == 0  # the override has no negative widths to clamp
+    default = to_blender(read_groom(FIXTURE))
+    np.testing.assert_allclose(default.radius[:3], [0.0001, 0.000075, 0.00005], rtol=1e-6)  # file widths

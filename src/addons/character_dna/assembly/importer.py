@@ -33,6 +33,7 @@ class AssemblyImportResult:
     hidden_objects: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     grooms: list[groom_import.GroomResult] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     report_text: str = ""
 
     def count(self, status: str) -> int:
@@ -79,6 +80,7 @@ def apply(
     wire: bool = True,
     warnings: list[str] | None = None,
     grooms: bool = True,
+    match_unreal_widths: bool = False,
 ) -> AssemblyImportResult:
     """Wire textures, import grooms and hide meshes for an imported instance. ``readers``: DNA role -> reader."""
     result = AssemblyImportResult(instance_name=instance_name, warnings=list(warnings or []))
@@ -88,7 +90,7 @@ def apply(
         by_material.setdefault(entry.material, []).append(entry)
     _wire_textures(assembly, instance_name, readers, logic_node_for, by_material, wire, result)
     if grooms:
-        _import_grooms(assembly, instance_name, readers, by_material, result)
+        _import_grooms(assembly, instance_name, readers, by_material, result, match_unreal_widths)
     else:
         for component in assembly.grooms():
             entries = [e for name in component.materials for e in by_material.get(name, [])]
@@ -98,6 +100,7 @@ def apply(
     if result.grooms:
         result.report_text += "\nGrooms (guides removed, (x, -y, z) / 100, radius = width / 2):\n"
         result.report_text += "\n".join(groom.line() for groom in result.grooms) + "\n"
+        result.report_text += "".join(f"Note: {note}\n" for note in result.notes)
         unmapped = sorted({key for groom in result.grooms for key in groom.unmapped_hair_color})
         if unmapped:
             result.report_text += f"Hair colour settings with no Principled Hair input: {', '.join(unmapped)}\n"
@@ -155,11 +158,17 @@ def _import_grooms(
     readers: dict[str, Any],
     by_material: dict[str, list[TextureStatus]],
     result: AssemblyImportResult,
+    match_unreal_widths: bool = False,
 ) -> None:
     head = head_surface(assembly, instance_name, readers.get("head"))
+    if assembly.grooms():
+        # Render > Curves > Shape: Strip draws strands at their real width. The default (Strand) draws
+        # every strand at least a pixel wide, so fine hair turns heavy and peach fuzz a frost in EEVEE.
+        bpy.context.scene.render.hair_type = "STRIP"
+        result.notes.append("Render > Curves > Shape set to Strip (real strand widths in EEVEE)")
     for component in assembly.grooms():
         entries = [e for name in component.materials for e in by_material.get(name, [])]
-        groom = groom_import.import_groom(component, assembly, head, instance_name, entries)
+        groom = groom_import.import_groom(component, assembly, head, instance_name, entries, match_unreal_widths)
         result.grooms.append(groom)
         result.statuses.extend(groom.statuses)
         if not groom.ok:
@@ -205,7 +214,11 @@ def write_report(result: AssemblyImportResult) -> bpy.types.Text:
 
 
 def import_assembly(
-    manifest_path: Path, properties: Any, include_body: bool = True, grooms: bool = True
+    manifest_path: Path,
+    properties: Any,
+    include_body: bool = True,
+    grooms: bool = True,
+    match_unreal_widths: bool = False,
 ) -> AssemblyImportResult:
     """Import the character a manifest describes. Raises ``ManifestError`` or ``RuntimeError``."""
     from .. import operators
@@ -232,5 +245,6 @@ def import_assembly(
         wire=bool(properties.import_materials),
         warnings=warnings,
         grooms=grooms,
+        match_unreal_widths=match_unreal_widths,
     )
     return result

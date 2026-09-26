@@ -162,6 +162,7 @@ def manifest_data(**overrides: Any) -> dict[str, Any]:
                     "attach_to": "head",
                     "binding": "surface",
                     "materials": [{"name": material, "region": region, "enabled": True}],
+                    "groom": {"width": 0.012, "root_scale": 1.0, "tip_scale": 0.45},
                 }
                 for name, region, material in GROOMS
             ],

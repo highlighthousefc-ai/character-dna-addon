@@ -156,6 +156,8 @@ class Component:
     attach_to: str
     materials: tuple[str, ...] = ()
     region: str = ""  # grooms: scalp, brows, lashes, beard or fuzz (the first material's region)
+    # Grooms: Unreal's component settings, e.g. width (cm, the width override), root_scale, tip_scale.
+    groom: dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_groom(self) -> bool:
@@ -287,6 +289,7 @@ def load_manifest(path: Path) -> Assembly:
             attach_to=str(component.get("attach_to", "")),
             materials=tuple(str(m.get("name", "")) for m in component.get("materials", [])),
             region=str(next((m.get("region", "") for m in component.get("materials", [])), "")),
+            groom=dict(component.get("groom") or {}),
         )
         for component in data.get("components", [])
     )

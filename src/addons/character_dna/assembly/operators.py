@@ -35,6 +35,14 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
             "The eyelash card mesh is hidden only when the eyelash groom imports"
         ),
     )  # pyright: ignore[reportInvalidTypeForm]
+    match_unreal_widths: bpy.props.BoolProperty(
+        name="Match Unreal Widths",
+        default=False,
+        description=(
+            "Use each groom's Unreal width override and root-to-tip taper (e.g. hair 0.012 cm, tip at 45%) "
+            "instead of the per-strand widths stored in the groom files"
+        ),
+    )  # pyright: ignore[reportInvalidTypeForm]
 
     def draw(self, _context: object) -> None:
         layout = self.layout
@@ -45,6 +53,9 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
         layout.prop(self, "import_shape_keys")
         layout.prop(self, "import_materials")
         layout.prop(self, "import_grooms")
+        row = layout.row()
+        row.enabled = self.import_grooms
+        row.prop(self, "match_unreal_widths")
         layout.prop(self, "import_face_board")
 
     def execute(self, context: bpy.types.Context) -> set[str]:
@@ -57,7 +68,11 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
             return {"CANCELLED"}
         try:
             result = importer.import_assembly(
-                file_path, self.properties, include_body=self.include_body, grooms=self.import_grooms
+                file_path,
+                self.properties,
+                include_body=self.include_body,
+                grooms=self.import_grooms,
+                match_unreal_widths=self.match_unreal_widths,
             )
         except (ManifestError, RuntimeError) as error:
             self.report({"ERROR"}, str(error))

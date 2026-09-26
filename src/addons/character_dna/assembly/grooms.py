@@ -37,6 +37,7 @@ ATTACH_GROUP = "Character DNA Attach To Surface"
 GROOM_PROPERTY = f"{ToolInfo.NAME}_groom"  # on each groom object: its region (scalp, brows, lashes, ...)
 FUZZ_REGION = "fuzz"
 LASHES_REGION = "lashes"
+HAIR_IOR = 1.55  # the Principled Hair BSDF default
 
 
 @dataclass
@@ -52,6 +53,7 @@ class GroomResult:
     negative_widths: int = 0
     seconds: float = 0.0
     surface: str = ""
+    widths: str = "file widths"
     error: str = ""
     unmapped_hair_color: list[str] = field(default_factory=list)
     statuses: list[TextureStatus] = field(default_factory=list)
@@ -67,7 +69,7 @@ class GroomResult:
         return (
             f"  {self.name} ({self.region}): {self.strands} strands, {self.points} points "
             f"({self.strands_in_file} in the file - {self.guides_removed} guides), "
-            f"{self.negative_widths} negative widths clamped, on {self.surface or 'no surface'}, "
+            f"{self.widths}, {self.negative_widths} negative widths clamped, on {self.surface or 'no surface'}, "
             f"{self.seconds:.2f} s{hidden}"
         )
 
@@ -127,17 +129,19 @@ def hair_material(source: manifest.Material, entries: list[TextureStatus], prefi
         hair.inputs[socket].default_value = value
     color = source.hair_color.get("color")
     if color is not None and len(color) >= 3:
-        # EEVEE (and so Material Preview) approximates the melanin model and renders it far lighter and
-        # redder (FINDINGS "Slice 2"); give it Unreal's resolved colour instead (linear RGB).
+        # EEVEE (and so Material Preview) has no hair shading yet: Blender 5.1 renders a Principled Hair
+        # BSDF there as a plain diffuse of its Color input, ignoring melanin and highlights
+        # (gpu_shader_material_hair.glsl; FINDINGS "Slice 2"). So EEVEE gets a Principled BSDF with
+        # Unreal's resolved colour (linear RGB), the exported roughness and hair's IOR: the specular
+        # highlight is what makes near-black hair read neutral, as in Cycles.
         rgba = (*map(float, color[:3]), 1.0)
         material.diffuse_color = rgba
         eevee_output = tree.nodes.new("ShaderNodeOutputMaterial")
         eevee_output.target = "EEVEE"
-        eevee = tree.nodes.new("ShaderNodeBsdfHairPrincipled")
-        eevee.model = "CHIANG"
-        eevee.parametrization = "COLOR"
-        eevee.label = "Hair (EEVEE: Unreal's resolved colour)"
-        eevee.inputs["Color"].default_value = rgba
+        eevee = tree.nodes.new("ShaderNodeBsdfPrincipled")
+        eevee.label = "EEVEE: Unreal's resolved colour"
+        eevee.inputs["Base Color"].default_value = rgba
+        eevee.inputs["IOR"].default_value = HAIR_IOR
         if "Roughness" in values:
             eevee.inputs["Roughness"].default_value = values["Roughness"]
         eevee.location, eevee_output.location = (0, -400), (300, -400)
@@ -170,8 +174,13 @@ def import_groom(
     head: bpy.types.Object | None,
     instance_name: str,
     entries: list[TextureStatus],
+    match_unreal_widths: bool = False,
 ) -> GroomResult:
-    """Import one groom component. Errors end up in ``GroomResult.error``, never raised."""
+    """Import one groom component. Errors end up in ``GroomResult.error``, never raised.
+
+    ``match_unreal_widths`` uses the component's Unreal width override and root / tip scale instead
+    of the file's per-point widths.
+    """
     result = GroomResult(name=component.name, region=component.region, file=component.path)
     start = time.perf_counter()
     try:
@@ -180,7 +189,20 @@ def import_groom(
         result.error = str(error)
         result.statuses = [with_status(e, "failed", f"groom not imported: {error}") for e in entries]
         return result
-    converted = groom_data.to_blender(groom)
+    settings = component.groom
+    if match_unreal_widths and settings.get("width"):
+        converted = groom_data.to_blender(
+            groom,
+            width=float(settings["width"]),
+            root_scale=float(settings.get("root_scale", 1.0)),
+            tip_scale=float(settings.get("tip_scale", 1.0)),
+        )
+        result.widths = (
+            f"Unreal width {float(settings['width']):g} cm, root x{float(settings.get('root_scale', 1.0)):g}"
+            f" -> tip x{float(settings.get('tip_scale', 1.0)):g}"
+        )
+    else:
+        converted = groom_data.to_blender(groom)
     result.strands_in_file = groom.strands
     result.guides_removed = converted.guides_removed
     result.strands = len(converted.counts)

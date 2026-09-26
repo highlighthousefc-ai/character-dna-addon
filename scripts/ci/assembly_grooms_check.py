@@ -114,9 +114,29 @@ def check_material(scene_object: bpy.types.Object) -> None:
     )
     eevee = outputs["EEVEE"].inputs["Surface"].links[0].from_node
     check(
-        eevee.parametrization == "COLOR" and abs(eevee.inputs["Color"].default_value[0] - 0.006) < 1e-6,
-        "hair: EEVEE uses the resolved colour",
+        eevee.bl_idname == "ShaderNodeBsdfPrincipled"
+        and abs(eevee.inputs["Base Color"].default_value[0] - 0.006) < 1e-6,
+        "hair: EEVEE gets a Principled BSDF with the resolved colour (EEVEE has no hair shading)",
     )
+
+
+def radius(scene_object: bpy.types.Object) -> np.ndarray:
+    values = np.empty(len(scene_object.data.points), np.float32)
+    scene_object.data.attributes["radius"].data.foreach_get("value", values)
+    return values
+
+
+def check_unreal_widths(assembly: object, importer: object, readers: dict) -> None:
+    """Match Unreal widths: the component's width override, tapered root -> tip (file widths otherwise)."""
+    for scene_object in [o for o in bpy.data.objects if o.type == "CURVES"]:
+        bpy.data.objects.remove(scene_object)
+    result = importer.apply(assembly, INSTANCE, readers, logic_node_for={}, match_unreal_widths=True)
+    hair = bpy.data.objects[next(g.object_name for g in result.grooms if g.name == "hair")]
+    check(
+        np.allclose(radius(hair)[:3], [0.00006, 0.0000435, 0.000027], rtol=1e-4),
+        "Match Unreal widths: 0.012 cm, tip x0.45",
+    )
+    check("Unreal width 0.012 cm" in result.report_text, "Match Unreal widths: the report says so")
 
 
 def main() -> None:
@@ -154,6 +174,7 @@ def main() -> None:
         check([g.name for g in result.grooms if g.ok] == ["hair", "eyelashes", "fuzz"], "3 grooms imported")
         check(card.hide_get() and card.hide_render, "eyelash groom imported: the card mesh is hidden")
         check(head.add_rest_position_attribute, "head: Add Rest Position on (needed by the deform node)")
+        check(bpy.context.scene.render.hair_type == "STRIP", "Render > Curves > Shape is Strip (real widths in EEVEE)")
         grooms = {g.name: bpy.data.objects[g.object_name] for g in result.grooms}
         for scene_object in grooms.values():
             check_groom(scene_object, head)
@@ -171,6 +192,7 @@ def main() -> None:
         check(np.allclose(moved, [0.0, 0.0, LIFT], atol=1e-4), f"roots follow the skin (+{LIFT} m in z)")
         warnings = [w.message for w in grooms["hair"].modifiers[0].node_warnings]
         check(not warnings, f"no node warnings ({warnings})")
+        check_unreal_widths(assembly, importer, readers)
     finally:
         character_dna.unregister()
     print("Assembly grooms check passed")

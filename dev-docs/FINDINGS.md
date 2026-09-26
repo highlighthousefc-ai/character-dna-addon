@@ -981,8 +981,7 @@ Code layout:
 ### Hair material
 - **Principled Hair BSDF** (Chiang model, melanin parametrisation) with Melanin, Melanin Redness, Tint and Roughness as exported, on a **Cycles** output.
 - **Not mapped:** `white_amount` and the colour `ramps`, which have no input on Blender's hair shader. The report lists them.
-- **EEVEE mismatch:** EEVEE (and so Material Preview) approximates the melanin model and renders melanin 0.9 / redness 0.25 **ginger-brown**. Cycles renders it near-black, matching Unreal's own resolved `color` (linear 0.006, 0.0014, 0.0003).
-  - So the material also has an **EEVEE** output: Principled Hair in COLOR mode with that resolved colour. The viewport now matches Cycles.
+- **EEVEE mismatch:** EEVEE rendered the hair ginger-brown, then red-brown. Superseded; see "Slice 2 follow-up: EEVEE and widths" below for the real cause and the fix.
   - The resolved colour is also the material's viewport display colour.
 - **Hair highlight mask** (`Hair_HighlightsMask`): loaded into the hair material, not connected, since Principled Hair has no input for it.
 
@@ -1004,3 +1003,19 @@ Code layout:
 - **Mutation checks** (restored byte-identical afterwards):
   - **A. Axis conversion replaced by Blender's own Alembic mapping (x, −z, y), unscaled:** `test_blender_frame_is_x_minus_y_z_in_metres` fails.
   - **B. Guides kept:** `test_guides_are_dropped` fails, and the CI grooms check exits 1 with "3 strands, 8 points (the guide dropped)".
+
+### Slice 2 follow-up (2026-09-26): EEVEE and widths
+- **Cause of the EEVEE hair colour:** in Blender 5.1, EEVEE doesn't shade hair at all. `gpu_shader_material_hair.glsl` (v5.1.2) implements both `node_bsdf_hair` and `node_bsdf_hair_principled` as a placeholder `ClosureDiffuse` of the node's **Color** input; melanin, roughness, coat and IOR are ignored.
+  - In **melanin** mode EEVEE therefore used the Color socket's unused default (a brown), which rendered ginger.
+  - In **colour** mode it used Unreal's resolved colour as a flat diffuse, with no specular. That colour, linear (0.006, 0.0014, 0.0003), is near-black but strongly red. Under the dim Material Preview HDRI it reads black (scalp about 0.01 in every channel); under a bright key light the red shows (scalp 0.106, 0.031, 0.010).
+- **The EEVEE output was in effect all along:** `get_output_node("EEVEE")` returns it, and a render with it forced to pure green came out green.
+- **Fix:** EEVEE's output is now a **Principled BSDF**: base = resolved colour, roughness = exported roughness, IOR 1.55. Its specular highlight is what makes near-black hair read neutral, as Cycles' hair lobes do.
+  - Mean scalp colour: EEVEE (0.278, 0.246, 0.238) against Cycles (0.264, 0.236, 0.231). Before the fix, EEVEE was (0.106, 0.031, 0.010).
+- **Strand shape:** `scene.render.hair_type` defaults to **STRAND**, which draws every strand at least 1 px wide, so the beard and brows looked heavy and the fuzz frosted. The import now sets **STRIP** (real widths); the report notes it. With Strip the fuzz frost is gone, at 0.75 m and at a 0.28 m close-up, so the fuzz stays visible to EEVEE.
+- **Match Unreal Widths** (import option, **off** by default):
+  - replaces the file's widths with the component's `groom.width` (cm), tapered linearly by point index from `root_scale` to `tip_scale`;
+  - for example hair is 0.012 cm, tip at ×0.45; brows 0.018 cm, tip at ×0.75;
+  - in Cycles, brows come out much fuller and darker, and hair slightly denser.
+- **Slice 1 status check:**
+  - **Disabling the wrinkle maps for delta-format exports did *not* land.** It was an open question, never implemented. The wrinkle-map fix PR covers it.
+  - **The test-helper path guard did land in PR #10.** `synthetic_assembly.write_export` only writes inside the export folder. A regression assertion now checks no file is created outside it.

@@ -59,6 +59,9 @@ def test_paths_may_not_leave_the_export_folder(tmp_path: Path, bad: str):
     manifest = synthetic_assembly.write_export(tmp_path / "export", data)
     with pytest.raises(ManifestError, match="outside the export folder"):
         load_manifest(manifest)
+    # The helper that writes the synthetic export must never create a file outside its folder either.
+    created = {p for p in tmp_path.rglob("*") if p.is_file()} - set((tmp_path / "export").rglob("*"))
+    assert created == set(), f"files written outside the export folder: {created}"
 
 
 def test_unreadable_manifests_raise_manifest_error(tmp_path: Path):
@@ -180,6 +183,7 @@ def test_groom_components_carry_region_and_hair_colour(export: Path):
     assert list(grooms) == ["hair", "eyelashes", "fuzz"]
     assert [grooms[name].region for name in grooms] == ["scalp", "lashes", "fuzz"]
     assert grooms["hair"].path == export.parent / "Grooms" / "hair.abc"
+    assert grooms["hair"].groom == {"width": 0.012, "root_scale": 1.0, "tip_scale": 0.45}
     assert assembly.materials["mat_hair"].hair_color["melanin"] == 0.9
     assert assembly.materials["mat_shirt"].hair_color == {}
     assert not any(component.is_groom for component in assembly.components if component.type == "fbx")

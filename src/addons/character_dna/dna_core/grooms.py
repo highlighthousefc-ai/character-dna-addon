@@ -117,14 +117,36 @@ def read_groom(path: Path) -> Groom:
     return groom
 
 
-def to_blender(groom: Groom, drop_guides: bool = True) -> BlenderGroom:
-    """Rendered strands in Blender's frame. Negative widths become 0."""
+def taper(counts: np.ndarray, root_scale: float, tip_scale: float) -> np.ndarray:
+    """Per point: ``root_scale`` at each strand's root, ``tip_scale`` at its tip, linear by point index."""
+    counts = np.asarray(counts, dtype=np.int64)
+    first = np.repeat(np.cumsum(counts) - counts, counts)
+    index = np.arange(int(counts.sum())) - first
+    last = np.repeat(np.maximum(counts - 1, 1), counts)
+    t = index / last
+    return (root_scale + (tip_scale - root_scale) * t).astype(np.float32)
+
+
+def to_blender(
+    groom: Groom,
+    drop_guides: bool = True,
+    width: float | None = None,
+    root_scale: float = 1.0,
+    tip_scale: float = 1.0,
+) -> BlenderGroom:
+    """Rendered strands in Blender's frame. Negative widths become 0.
+
+    ``width`` (cm) replaces the file's widths with Unreal's groom width override, tapered from
+    ``root_scale`` to ``tip_scale`` along each strand (Unreal's root / tip scale).
+    """
     keep = np.ones(groom.strands, dtype=bool)
     if drop_guides and groom.guide is not None:
         keep = ~groom.guide
     point_keep = np.repeat(keep, groom.counts)
     widths = groom.widths if groom.widths is not None else np.zeros(len(groom.points), np.float32)
     widths = widths[point_keep]
+    if width is not None:
+        widths = np.float32(width) * taper(groom.counts[keep], root_scale, tip_scale)
     return BlenderGroom(
         positions=(groom.points[point_keep] * AXIS_SIGN * CM_TO_M).astype(np.float32),
         counts=groom.counts[keep].astype(np.int32),
