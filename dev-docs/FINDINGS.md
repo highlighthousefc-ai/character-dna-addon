@@ -1146,6 +1146,7 @@ Code layout:
   - **colour:** `fabric.color` × the stitch mask's colour × AO (its **red** channel) × macro variation (×10 tiling, strength 0.25).
   - **normal:** the normal map is **DirectX style** (green flipped, as for the head and body), mixed with the micro normal tiled ×80 (shorts) or ×100 (shirt). Micro height is used as a bump.
   - **roughness:** 0.8.
+- **The garments are grey by design:** both manifest materials (MetaHuman's default garment) have `fabric.color` = `stitch_color` = linear 0.591 grey, and the export has no colour texture for clothes. The detail comes from AO, stitches, normals and weave. A close-up A/B against a flat Principled BSDF of the same grey shows the hem stitching, fabric wrinkles, seams and weave that only the fabric material has.
 - **Guesses (no manifest value):** roughness 0.8, macro strength 0.25 and the bump strength. The export carries textures and a few parameters, not Unreal's fabric material; these were picked by eye in the renders.
 
 ### Import on the user's export (Blender 5.1.2)
