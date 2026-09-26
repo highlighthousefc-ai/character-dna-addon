@@ -1,10 +1,12 @@
-# 08: Character Assembly (Render-Ready Materials, Hair, Lighting, Physics)
+# 08: Character Assembly (Render-Ready Materials, Hair and Clothing)
 
 **Depends on:** 01 (rig instance, import). Independent of 02-07; do it after the rig works.
 **Confidence:** MEDIUM on the input format, now checked against one real export (Slice 0, 2026-09-25; see `dev-docs/FINDINGS.md` "Character Assembly Slice 0"). Still LOW on how Poly Hammer's own Assembly addon behaves, which we don't copy anyway.
 
 ## Purpose
-Turn an imported MetaHuman from "a rig that evaluates" into something **render-ready** in Blender: correct materials, hair, clothing, basic lighting for review, and hair dynamics.
+Turn an imported MetaHuman from "a rig that evaluates" into something **render-ready** in Blender: correct materials, hair and clothing.
+
+**Status: complete (2026-09-26).** Slices 0-3 are merged; see `dev-docs/FINDINGS.md` "Character Assembly: complete". **Out of scope, by decision:** hair physics (section D) and the lighting and camera rig (section E). Both sections are kept below as reference only.
 
 ## Input: the "Export Character For DCC" folder (verified, Slice 0)
 Produced by Poly Hammer Interchange 0.2.1 on UE 5.8.3 (closed-source freeware; we read its *output* only). One folder per character:
@@ -70,11 +72,13 @@ The DCC export **does include hair**, as standard Alembic `ICurves` (`/Groom/Cur
 - Material slots: 8 in the FBX (`…_Short`, `…_Shirt`, `…_Short_2` … `…_Shirt_7`) against 2 in the manifest. **Verified:** only the first two have faces; `_2` … `_7` are empty and dropped.
 - Apply the body skin-culling mask from `Geometry/body.json` `visible_triangles` so skin doesn't poke through: a face with none of its triangles listed is covered. The mask fits the rest pose, so the import widens it by up to 3 rings of neighbours the garment covers at rest (FINDINGS "Slice 3").
 
-### D. Hair dynamics
+### D. Hair dynamics: OUT OF SCOPE
+**Decided (2026-09-26): not built.** Grooms import static, and the manifest's physics settings are ignored. The notes below are kept as reference in case this is ever reopened.
 - The manifest gives Unreal's per-group physics (`simulate` is false for every groom in the sample): sub_steps, iteration_count, air_drag, bend damping and stiffness, collision_radius, gravity.
 - Blender's **XPBD Solver** and Hair Dynamics assets exist only in **Blender 5.2+**, and are experimental there. Convert only settings with a real equivalent, and mark the feature unsupported on 5.1. **Decided:** minimum Blender stays 5.1; physics is gated to 5.2+ and disabled with a clear message on 5.1.
 
-### E. Lighting
+### E. Lighting: OUT OF SCOPE
+**Decided (2026-09-26): not built.** No lighting or camera presets; use your own scene lighting. The note below is reference only.
 Simple review presets (a 3-point rig and HDRI) that make skin and hair readable. Our own minimal scope.
 
 ## Slices
@@ -83,10 +87,10 @@ Simple review presets (a 3-point rig and HDRI) that make skin and hair readable.
 | 0 | Inspect a real export | **Done** (2026-09-25) |
 | 1 | Import from the manifest: head and body through the existing importer, every texture wired by manifest role and colour space (no file-name guessing), the eye-texture fix, hidden meshes hidden, texture report, capability check | Merged (PR #10); see FINDINGS "Slice 1" |
 | 2 | Static grooms: our own Alembic curve reader, guide filtering, axis and scale, root-UV surface attachment, hair shader. Fuzz imports hidden in the viewport, enabled for render, with a one-click toggle | Merged (PR #12). A numpy Ogawa reader (hair in 52 ms), so no native library; see FINDINGS "Slice 2" |
-| 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | PR open (not merged). LOD0, fabric from the manifest, hiding toggle; no poke-through at rest or posed; see FINDINGS "Slice 3" |
-| 4 | Full materials: SRMF, scatter, detail normal, eyes, teeth masks, fabric | |
-| 5 | Hair physics (XPBD), Blender 5.2+ | |
-| 6 | Lighting and camera presets | |
+| 3 | Clothing FBX, rebound to the body rig, with body-under-clothes hiding (skin culling) | Merged (PR #14). LOD0, fabric from the manifest, hiding toggle; no poke-through at rest or posed; see FINDINGS "Slice 3" |
+| 4 | Full materials: SRMF, scatter, detail normal, eyes, teeth masks, fabric | **Covered by slices 1 and 3.** SRMF (RGB), scatter, detail normal, eyes and fabric are wired. Loaded but not connected (meaning not verified): teeth masks, eye dust, SRMF alpha, hair highlight mask |
+| 5 | Hair physics (XPBD), Blender 5.2+ | **Out of scope** (decided 2026-09-26) |
+| 6 | Lighting and camera presets | **Out of scope** (decided 2026-09-26) |
 
 ### Slice 1 assumptions checked against the export
 - **Held:** there is one manifest per character; DNAs are next to it; `Maps/` is next to the DNAs, which the existing importer already searches; wrinkle-map file names match the existing importer exactly; both DNAs load cleanly.
@@ -107,4 +111,5 @@ Simple review presets (a 3-point rig and HDRI) that make skin and hair readable.
 - Importing a manifest yields textured skin, eyes, teeth and hidden helper meshes, with a report of missing and unused textures.
 - Wrinkle maps respond to expressions driven from the face board.
 - Grooms appear on the head in the right place (roots within 0.5 cm of the scalp), with guides removed.
-- Hair dynamics run without artifacts during a head-turn test, or are clearly marked unsupported on the user's Blender version.
+- Clothing follows the body rig, and no skin shows through it at rest or in a posed test (arm raised, knee bent).
+- ~~Hair dynamics run without artifacts during a head-turn test~~: out of scope.

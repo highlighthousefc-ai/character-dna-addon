@@ -54,7 +54,7 @@ The human should decide this first, and if unsure, get legal advice: nobody here
 | 7 | `05-bone-matching-solver.md` | hard (separate subsystem) |
 | 8 | `06-rbf-editor.md` | medium-hard |
 | 9 | `07-converter.md` | hardest |
-| 10 | `08-character-assembly.md`: materials, hair, lighting, physics (optional, low-confidence spec) | medium, unclear |
+| 10 | `08-character-assembly.md`: materials, hair, clothing. **Complete** (2026-09-26); hair physics and lighting are out of scope | done |
 
 ## Terminology
 
