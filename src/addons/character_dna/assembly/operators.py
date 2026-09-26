@@ -27,6 +27,14 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
     filename_ext = ".json"
 
     filter_glob: bpy.props.StringProperty(default="*.json", options={"HIDDEN"})  # pyright: ignore[reportInvalidTypeForm]
+    import_grooms: bpy.props.BoolProperty(
+        name="Grooms",
+        default=True,
+        description=(
+            "Import the hair, brows, lashes, beard and peach fuzz as hair curves attached to the head. "
+            "The eyelash card mesh is hidden only when the eyelash groom imports"
+        ),
+    )  # pyright: ignore[reportInvalidTypeForm]
 
     def draw(self, _context: object) -> None:
         layout = self.layout
@@ -36,6 +44,7 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
         layout.prop(self, "include_body")
         layout.prop(self, "import_shape_keys")
         layout.prop(self, "import_materials")
+        layout.prop(self, "import_grooms")
         layout.prop(self, "import_face_board")
 
     def execute(self, context: bpy.types.Context) -> set[str]:
@@ -47,11 +56,14 @@ class CHARACTER_DNA_OT_import_assembly(bpy.types.Operator, ImportHelper, Charact
             self.report({"ERROR"}, "The scene unit scale must be set to 1.0")
             return {"CANCELLED"}
         try:
-            result = importer.import_assembly(file_path, self.properties, include_body=self.include_body)
+            result = importer.import_assembly(
+                file_path, self.properties, include_body=self.include_body, grooms=self.import_grooms
+            )
         except (ManifestError, RuntimeError) as error:
             self.report({"ERROR"}, str(error))
             return {"CANCELLED"}
-        level = "WARNING" if result.count("failed") or result.count("missing") or result.warnings else "INFO"
+        failed = result.count("failed") or result.count("missing") or any(not g.ok for g in result.grooms)
+        level = "WARNING" if failed or result.warnings else "INFO"
         self.report({level}, result.summary())
         return {"FINISHED"}
 

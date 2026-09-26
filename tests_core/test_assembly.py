@@ -9,6 +9,7 @@ import pytest
 import synthetic_assembly
 
 from dna_core.assembly import (
+    GROOM_UNCONNECTED,
     KNOWN_CAPABILITIES,
     ManifestError,
     dna_mismatches,
@@ -38,7 +39,7 @@ def test_reads_a_v2_manifest(export: Path):
     assert len(assembly.meshes) == len(synthetic_assembly.HEAD_MESHES) + len(synthetic_assembly.BODY_MESHES)
     assert assembly.mesh_material("head", 3).type == "eye_ball"
     assert assembly.mesh_material("body", 0).name == "mat_body"
-    assert [c.type for c in assembly.components] == ["fbx", "alembic"]
+    assert [c.type for c in assembly.components] == ["fbx", "alembic", "alembic", "alembic"]
     # the folder works too
     assert load_manifest(export.parent).name == "SyntheticCharacter"
 
@@ -119,7 +120,7 @@ def test_hidden_meshes_and_deferred_components(export: Path):
     assert assembly.hidden_meshes("body") == []
     plan = _plan(export)
     assert plan["mat_shirt", "normal"][0::2] == ("deferred", "clothing is Slice 3")
-    assert plan["mat_hair", "highlight_mask"][0::2] == ("deferred", "grooms are Slice 2")
+    assert plan["mat_hair", "highlight_mask"][0::2] == ("loaded", GROOM_UNCONNECTED)
 
 
 def test_textures_of_hidden_materials_are_not_wired(tmp_path: Path):
@@ -151,7 +152,7 @@ def test_report_lists_counts_warnings_and_unknown_capabilities(tmp_path: Path):
     assert assembly.unknown_capabilities() == ["time_travel"]
     assert "semantic_components" in KNOWN_CAPABILITIES
     report = format_report(assembly, texture_plan(assembly), ["X_saliva_lod0_mesh"], ["something off"])
-    assert "Textures: 28 connected, 4 loaded, 2 deferred" in report
+    assert "Textures: 28 connected, 5 loaded, 1 deferred" in report
     assert "WARNING: something off" in report
     assert "WARNING: Unknown required capabilities (may not import fully): time_travel" in report
     assert "WARNING: Exporter diagnostic: groom hair: 3 strands clamped" in report
@@ -171,3 +172,14 @@ def test_edited_dna_is_detected(tmp_path: Path):
     assert dna_mismatches(load_manifest(manifest)) == [
         "head.dna differs from the exported file (edited since the export?)"
     ]
+
+
+def test_groom_components_carry_region_and_hair_colour(export: Path):
+    assembly = load_manifest(export)
+    grooms = {component.name: component for component in assembly.grooms()}
+    assert list(grooms) == ["hair", "eyelashes", "fuzz"]
+    assert [grooms[name].region for name in grooms] == ["scalp", "lashes", "fuzz"]
+    assert grooms["hair"].path == export.parent / "Grooms" / "hair.abc"
+    assert assembly.materials["mat_hair"].hair_color["melanin"] == 0.9
+    assert assembly.materials["mat_shirt"].hair_color == {}
+    assert not any(component.is_groom for component in assembly.components if component.type == "fbx")

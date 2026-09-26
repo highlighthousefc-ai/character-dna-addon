@@ -173,6 +173,9 @@ jobs:
       - name: Character assembly wires textures by manifest role (synthetic export)
         run: python scripts/ci/assembly_materials_check.py
 
+      - name: Character assembly grooms attach to the head and follow the skin (synthetic groom)
+        run: python scripts/ci/assembly_grooms_check.py
+
   package:
     name: Package and clean install (${{ matrix.platform }}, Blender 5.1.2)
     needs: [bindings]

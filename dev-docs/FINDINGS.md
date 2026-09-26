@@ -913,3 +913,94 @@ Teeth masks, loaded but not connected; the channel meanings are guesses:
   - `wm.call_menu` from a timer doesn't show a menu.
   - Node-editor `view_selected` from a timer only takes effect on the next real event. A simulated NUMPAD_PERIOD key over the editor works.
 - **Hiding the eyelash card mesh leaves the character without lashes until Slice 2** imports the eyelash groom.
+
+## Character Assembly Slice 2 (2026-09-26): grooms
+Branch `feature/assembly-grooms`. The assembly import now also brings in every `alembic` component as a Blender hair Curves object attached to the head. An import option, **Grooms**, is on by default.
+
+Code layout:
+- `dna_core/alembic.py`: a minimal numpy Ogawa reader.
+- `dna_core/grooms.py`: reading a groom and converting it for Blender. No bpy.
+- `assembly/grooms.py`: the Blender side.
+- `assembly/ui.py`: the Grooms sidebar panel.
+
+### Reader: numpy Ogawa, no native library needed
+- **Layout source:** the Alembic reference implementation (BSD-3; `lib/Alembic/Ogawa`, `AbcCoreOgawa/ReadUtil.cpp`). The layout, in brief:
+  - a 16-byte header, then groups of `uint64` child offsets, where bit 63 marks a data block;
+  - archive root: [2] the top object, [5] the indexed metadata;
+  - object: [0] its properties, children, [last] the headers;
+  - compound: one group per property, [last] the headers (bit-packed `info`);
+  - array sample: [2i] 16-byte key plus values, [2i+1] dimensions.
+- **Correctness:** on all six real grooms, P, nVertices, width, uv and groom_guide are **identical** to the dumps made with the reference C++ library in Slice 0.
+- **Speed** (file cached, including reading the file into memory):
+
+| Groom | Read time |
+|---|---|
+| hair (1,721,726 points) | **52 ms** |
+| fuzz | 11 ms |
+| beard | 5 ms |
+| the other three | under 2 ms each |
+
+- This was well inside the 1-day timebox, so the native-library fallback wasn't needed.
+- **Test fixture:** `tests_core/fixtures/synthetic_groom.abc` (2.2 KB), written by the reference library from `fixtures/make_synthetic_groom.cpp`. It has 4 strands, one of them a guide at the origin, and one negative width. It's the only `.abc` that `.gitignore` allows.
+
+### Import on the user's export (Blender 5.1.2)
+- **Timing:** 12.1 s for the whole import in the background, 12.0 s in the GUI. The grooms' own share is about 0.2 s; hair takes 0.14-0.19 s to read, convert and build.
+
+| Groom | In the file | Guides | Imported | Points | Notes |
+|---|---|---|---|---|---|
+| hair (scalp) | 112,776 | 987 | **111,789** | 1,713,051 | |
+| fuzz | 75,737 | 31,187 | **44,550** | 267,300 | hidden in the viewport, renders |
+| beard | 16,793 | 268 | **16,525** | 186,659 | 67 negative widths clamped |
+| eyebrows | 4,881 | 613 | **4,268** | 64,020 | |
+| mustache | 1,476 | 191 | **1,285** | 57,825 | |
+| eyelashes | 610 | 289 | **321** | 3,852 | |
+
+- **Conversion:** file (x, y, z) cm → Blender (x, −y, z) / 100 m. Radius = width / 2, in metres, with negatives clamped to 0. Curve type POLY, since the file says linear.
+- **Extra data:** `groom_color` is kept as a point attribute (hair only).
+- **Transform:** positions go into the head's space; the head sits at identity on import.
+- **Root UVs** match the head's `DiffuseUV` as-is, with no V flip: the median distance from a root to the skin is 1.0 mm, against 138 mm with V flipped.
+
+### Surface attachment
+- **Setup, per groom:**
+  - `curves.surface = head_lod0_mesh`, with `surface_uv_map` set;
+  - a `surface_uv_coordinate` (FLOAT2, per curve) attribute holding the root UVs;
+  - a Geometry Nodes modifier running **Deform Curves on Surface** (shared node group "Character DNA Attach To Surface");
+  - the curves object parented to the head.
+- **Needed:** the head needs **`add_rest_position_attribute = True`**. Without it the node warns `Evaluated surface missing attribute: "rest_position"` and doesn't deform.
+- **Verified on the real rig**, in background Blender with `--enable-autoexec` so the rig's Python drivers run: brows raised (brow_raiseIn/Out L and R = 1) and eyes widened (eye_blink L and R = −1).
+
+| Groom | Roots | Skin under roots moved (median) | Roots moved (median) | Median gap | 95th pct gap |
+|---|---|---|---|---|---|
+| eyebrows | 4,268 | 10.40 mm | 10.39 mm | 0.175 mm | 0.47 mm |
+| eyelashes | 321 | 2.95 mm | 3.00 mm | 0.055 mm | 0.16 mm |
+
+  The gap is the nearest-vertex measurement's own error.
+- **Also verified:** rotating the body rig's `head` bone moves the skin a median 50.6 mm and the brow roots 50.7 mm.
+- **Gotcha, not a bug:** in Blender 5.1, `Object.shape_key_add()` creates the new key at **value 1.0**. A test that adds a "lift" key and reads the "before" state is therefore already lifted. I first misread this as Deform Curves on Surface failing on shape-key-only surfaces; that was wrong, and it works.
+
+### Hair material
+- **Principled Hair BSDF** (Chiang model, melanin parametrisation) with Melanin, Melanin Redness, Tint and Roughness as exported, on a **Cycles** output.
+- **Not mapped:** `white_amount` and the colour `ramps`, which have no input on Blender's hair shader. The report lists them.
+- **EEVEE mismatch:** EEVEE (and so Material Preview) approximates the melanin model and renders melanin 0.9 / redness 0.25 **ginger-brown**. Cycles renders it near-black, matching Unreal's own resolved `color` (linear 0.006, 0.0014, 0.0003).
+  - So the material also has an **EEVEE** output: Principled Hair in COLOR mode with that resolved colour. The viewport now matches Cycles.
+  - The resolved colour is also the material's viewport display colour.
+- **Hair highlight mask** (`Hair_HighlightsMask`): loaded into the hair material, not connected, since Principled Hair has no input for it.
+
+### Fuzz, eyelash card, panel
+- **Peach fuzz:** `hide_viewport = True`, `hide_render = False`.
+  - The **Grooms** sidebar panel lists each groom with its strand count and one-click viewport and render toggles. A real click was tested in the GUI.
+  - **EEVEE renders:** EEVEE draws strands at least 1 px wide, so the 0.02 mm fuzz becomes a pale frost over the face. Cycles renders it correctly.
+- **Eyelash card mesh:** hidden only when the eyelash groom imported; otherwise it stays visible and the report says why. This changes Slice 1's behaviour, where it was hidden whenever the manifest said so.
+
+### Not done / open
+- **Unreal's groom overrides** aren't applied: `groom.width` (for example hair 0.012 cm, brows 0.018 cm) and the root/tip scale (tip 0.45-0.75). The file's own widths are used, as specified.
+- **Physics** stays off, and the `groom_groups` physics settings are ignored.
+- **Wrinkle maps:** the brow-raise screenshot shows the known delta wrinkle-map problem (white forehead). That's the next task after Slice 2.
+
+### Tests and proof
+- **`tests_core/test_grooms.py`:** 7 tests on the fixture: the archive tree, values as written, the axis and units, guide dropping, radius and clamping, not-an-Alembic, and the hair-shader mapping.
+- **`test_assembly.py`:** updated for groom components (region, hair_color); the full suite is **94 passed**.
+- **`scripts/ci/assembly_grooms_check.py`** (CI register job, macOS and Windows, bpy 5.1 and 5.2): 27 checks against a UV grid standing in for the head. Among them: roots follow a +0.1 m shape-key lift exactly, and the eyelash card rule.
+- **Mutation checks** (restored byte-identical afterwards):
+  - **A. Axis conversion replaced by Blender's own Alembic mapping (x, −z, y), unscaled:** `test_blender_frame_is_x_minus_y_z_in_metres` fails.
+  - **B. Guides kept:** `test_guides_are_dropped` fails, and the CI grooms check exits 1 with "3 strands, 8 points (the guide dropped)".

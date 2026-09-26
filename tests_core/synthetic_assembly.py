@@ -75,7 +75,23 @@ MATERIALS: list[tuple[str, str, str, list[tuple[str, str, str]]]] = [
     ),
     ("mat_shirt", "clothes", "creator", [("normal", "Clothes_Shirt_Normal.png", "Non-Color")]),
     ("mat_hair", "hair", "creator", [("highlight_mask", "Hair_HighlightsMask.png", "sRGB")]),
+    ("mat_lashes_groom", "eyelashes_groom", "creator", []),
+    ("mat_fuzz", "peach_fuzz", "creator", []),
 ]
+
+# Groom components: (name, region, material). Their files are copies of fixtures/synthetic_groom.abc.
+GROOMS = [("hair", "scalp", "mat_hair"), ("eyelashes", "lashes", "mat_lashes_groom"), ("fuzz", "fuzz", "mat_fuzz")]
+GROOM_FIXTURE = Path(__file__).parent / "fixtures" / "synthetic_groom.abc"
+# As exported (hair_color of a hair material), made-up values.
+HAIR_COLOR = {
+    "melanin": 0.9,
+    "redness": 0.25,
+    "tint": [1.0, 1.0, 1.0],
+    "white_amount": 0.0,
+    "roughness": 0.37,
+    "color": [0.006, 0.0014, 0.0003],
+    "ramps": {"root_to_tip": [{"position": 0.0, "color": [0.006, 0.0014, 0.0003]}]},
+}
 
 # DNA mesh index -> (mesh name, material). The head's indices follow MetaHuman's LOD0 order.
 HEAD_MESHES = {
@@ -136,15 +152,19 @@ def manifest_data(**overrides: Any) -> dict[str, Any]:
                 "attach_to": "body",
                 "materials": [{"name": "mat_shirt"}],
             },
-            {
-                "id": "hair",
-                "name": "hair",
-                "type": "alembic",
-                "path": "Grooms/hair.abc",
-                "role": "hair",
-                "attach_to": "head",
-                "materials": [{"name": "mat_hair"}],
-            },
+            *[
+                {
+                    "id": name,
+                    "name": name,
+                    "type": "alembic",
+                    "path": f"Grooms/{name}.abc",
+                    "role": "hair",
+                    "attach_to": "head",
+                    "binding": "surface",
+                    "materials": [{"name": material, "region": region, "enabled": True}],
+                }
+                for name, region, material in GROOMS
+            ],
         ],
         "materials": [
             {
@@ -156,6 +176,7 @@ def manifest_data(**overrides: Any) -> dict[str, Any]:
                 "textures": [
                     {"role": role, "path": f"Maps/{file}", "color_space": space} for role, file, space in textures
                 ],
+                **({"hair_color": HAIR_COLOR} if name in {material for _, _, material in GROOMS} else {}),
             }
             for name, kind, profile, textures in MATERIALS
         ],
@@ -177,6 +198,7 @@ def write_export(
     folder.mkdir(parents=True, exist_ok=True)
     files = {data["dna"][role] for role in data["dna"]}
     files |= {texture["path"] for material in data["materials"] for texture in material.get("textures", [])}
+    files |= {component["path"] for component in data.get("components", []) if component["type"] == "alembic"}
     root = folder.resolve()
     for relative in sorted(files):
         path = (folder / relative).resolve()
@@ -187,6 +209,8 @@ def write_export(
         path.parent.mkdir(parents=True, exist_ok=True)
         if write_file is not None and path.suffix == ".png":
             write_file(path)
+        elif path.suffix == ".abc":
+            path.write_bytes(GROOM_FIXTURE.read_bytes())
         else:
             path.write_bytes(b"")
     manifest = folder / "CharacterAssemblyManifest.json"

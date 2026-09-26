@@ -8,7 +8,8 @@ from a real export (schema version 2); see ``dev-docs/FINDINGS.md`` "Character A
   ``"hidden"`` means the mesh isn't rendered (saliva, cartilage, the eyelash card mesh).
 * ``materials[]`` lists each material's textures by ``role`` with the colour space to read them in.
   Textures are wired from these roles, never from file names.
-* ``components[]`` are the grooms (Alembic) and clothing (FBX), imported by later slices.
+* ``components[]`` are the grooms (Alembic, Slice 2: ``grooms.py`` and ``assembly/grooms.py``) and
+  clothing (FBX, Slice 3).
 
 Every path is relative to the folder. A path that is absolute or leaves the folder is refused.
 
@@ -90,8 +91,10 @@ UNCONNECTED_ROLES: dict[tuple[str, str], str] = {
     ("eye_ball", "dust"): "how Unreal applies it is not verified",
 }
 
-# Components, and the slice that imports them.
-DEFERRED_COMPONENTS = {"alembic": "grooms are Slice 2", "fbx": "clothing is Slice 3"}
+# Components a later slice imports, and which one.
+DEFERRED_COMPONENTS = {"fbx": "clothing is Slice 3"}
+# Hair material textures: Blender's Principled Hair BSDF has no input for them.
+GROOM_UNCONNECTED = "loaded, not connected: the Principled Hair BSDF has no input for it"
 
 
 class ManifestError(ValueError):
@@ -117,6 +120,8 @@ class Material:
     display_name: str
     profile: str
     textures: tuple[Texture, ...] = ()
+    # Hair materials: melanin, redness, tint, roughness, white_amount, color, ramps (as exported).
+    hair_color: dict[str, Any] = field(default_factory=dict)
 
     @property
     def hidden(self) -> bool:
@@ -150,6 +155,11 @@ class Component:
     role: str
     attach_to: str
     materials: tuple[str, ...] = ()
+    region: str = ""  # grooms: scalp, brows, lashes, beard or fuzz (the first material's region)
+
+    @property
+    def is_groom(self) -> bool:
+        return self.type == "alembic"
 
 
 @dataclass(frozen=True)
@@ -165,6 +175,9 @@ class Assembly:
     required_capabilities: tuple[str, ...]
     diagnostics: tuple[str, ...]
     rig_capabilities: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def grooms(self) -> list[Component]:
+        return [component for component in self.components if component.is_groom]
 
     def unknown_capabilities(self) -> list[str]:
         return [name for name in self.required_capabilities if name not in KNOWN_CAPABILITIES]
@@ -217,6 +230,7 @@ def _material(root: Path, data: Mapping[str, Any]) -> Material:
         display_name=str(data.get("display_name", "")),
         profile=str(data.get("profile", "creator")),
         textures=textures,
+        hair_color=dict(data.get("hair_color") or {}),
     )
 
 
@@ -272,6 +286,7 @@ def load_manifest(path: Path) -> Assembly:
             role=str(component.get("role", "")),
             attach_to=str(component.get("attach_to", "")),
             materials=tuple(str(m.get("name", "")) for m in component.get("materials", [])),
+            region=str(next((m.get("region", "") for m in component.get("materials", [])), "")),
         )
         for component in data.get("components", [])
     )
@@ -374,7 +389,12 @@ def texture_plan(assembly: Assembly) -> list[TextureStatus]:
             )
     dna_names = set(_dna_material_names(assembly))
     for component in assembly.components:
-        reason = DEFERRED_COMPONENTS.get(component.type, f'"{component.type}" components are not supported')
+        status, reason = (
+            "deferred",
+            DEFERRED_COMPONENTS.get(component.type, f'"{component.type}" components are not supported'),
+        )
+        if component.is_groom:
+            status, reason = "loaded", GROOM_UNCONNECTED
         for name in component.materials:
             material = assembly.materials.get(name)
             if material is None or name in dna_names:
@@ -387,8 +407,8 @@ def texture_plan(assembly: Assembly) -> list[TextureStatus]:
                     texture.role,
                     texture.path,
                     texture.color_space,
-                    "deferred",
-                    reason,
+                    status if texture.exists else "missing",
+                    reason if texture.exists else "file not found",
                 )
                 for texture in material.textures
             )
